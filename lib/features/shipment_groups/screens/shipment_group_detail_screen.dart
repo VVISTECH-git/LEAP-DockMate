@@ -1,9 +1,12 @@
+// ignore_for_file: prefer_const_constructors
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/leap_theme.dart';
 import '../models/shipment_group_model.dart';
 import '../../documents/services/document_service.dart';
 
@@ -44,28 +47,71 @@ class _ShipmentGroupDetailScreenState
         onTypeChanged: (t) => setState(() => _selectedDocType = t),
         onCamera: () async {
           Navigator.pop(context);
-          await _pick(ImageSource.camera);
+          await _pickCamera();
         },
         onGallery: () async {
           Navigator.pop(context);
-          await _pick(ImageSource.gallery);
+          await _pickMultiGallery();
         },
       ),
     );
   }
 
-  Future<void> _pick(ImageSource source) async {
+  // Camera — single shot, called again via + button for burst
+  Future<void> _pickCamera() async {
     try {
       final xfile = await _picker.pickImage(
-        source: source,
+        source:       ImageSource.camera,
         imageQuality: AppConstants.imageQuality,
-        maxWidth:  AppConstants.imageMaxWidth.toDouble(),
-        maxHeight: AppConstants.imageMaxHeight.toDouble(),
+        maxWidth:     AppConstants.imageMaxWidth.toDouble(),
+        maxHeight:    AppConstants.imageMaxHeight.toDouble(),
       );
       if (xfile == null) return;
-      final file    = File(xfile.path);
+      await _addFile(xfile.path);
+    } catch (e) {
+      debugPrint('Camera error: $e');
+      _showSnack('Error accessing camera', false);
+    }
+  }
+
+  // Gallery — multi-select up to remaining slots
+  Future<void> _pickMultiGallery() async {
+    try {
+      final remaining = AppConstants.maxDocuments - _docs.length;
+      if (remaining <= 0) {
+        _showSnack('Maximum ${AppConstants.maxDocuments} documents reached', false);
+        return;
+      }
+      final xfiles = await _picker.pickMultiImage(
+        imageQuality: AppConstants.imageQuality,
+        maxWidth:     AppConstants.imageMaxWidth.toDouble(),
+        maxHeight:    AppConstants.imageMaxHeight.toDouble(),
+      );
+      if (xfiles.isEmpty) return;
+
+      final toAdd = xfiles.take(remaining).toList();
+      if (xfiles.length > remaining) {
+        final plural = remaining > 1 ? 's' : '';
+        _showSnack(
+          'Only $remaining more image$plural added (max ${AppConstants.maxDocuments})',
+          false,
+        );
+      }
+      for (final xfile in toAdd) {
+        await _addFile(xfile.path);
+      }
+    } catch (e) {
+      debugPrint('Gallery error: $e');
+      _showSnack('Error picking images', false);
+    }
+  }
+
+  // Shared helper — rename and add to _docs
+  Future<void> _addFile(String path) async {
+    try {
+      final file    = File(path);
       final ts      = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
-      final ext     = xfile.path.split('.').last.toLowerCase();
+      final ext     = path.split('.').last.toLowerCase();
       final renamed = await file.copy(
           '${file.parent.path}/${ts}_${_docs.length}.$ext');
       setState(() {
@@ -73,8 +119,7 @@ class _ShipmentGroupDetailScreenState
         _docResults = List<bool?>.filled(_docs.length, null);
       });
     } catch (e) {
-      debugPrint('Image pick error: $e');
-      _showSnack('Error picking image', false);
+      debugPrint('File add error: $e');
     }
   }
 
@@ -195,7 +240,7 @@ class _ShipmentGroupDetailScreenState
     final isIB = g.isInbound;
 
     return Scaffold(
-      backgroundColor: AppConstants.bgGrey,
+      backgroundColor: context.watch<LeapThemeProvider>().theme.surface1,
       appBar: AppBar(
         backgroundColor: AppConstants.nokiaBlue,
         elevation: 0,
@@ -281,10 +326,10 @@ class _ShipmentGroupDetailScreenState
                     child: ElevatedButton(
                       onPressed: _submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppConstants.nokiaBlue,
+                        backgroundColor: context.watch<LeapThemeProvider>().theme.primary,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: AppConstants.nokiaBlue.withValues(alpha: 0.4),
+                        shadowColor: context.watch<LeapThemeProvider>().theme.primary.withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
@@ -380,7 +425,7 @@ class _UploadProgressButton extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             // Blue base
-            Container(color: AppConstants.nokiaBlue),
+            Container(color: AppConstants.nokiaBlue), // theme-aware via appBar
             // Green progress fill sliding in from left
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
@@ -729,7 +774,6 @@ class _DocumentsCard extends StatelessWidget {
                         border: Border.all(
                             color: AppConstants.nokiaBlue.withValues(alpha: 0.2)),
                       ),
-                      // ignore: prefer_const_constructors
                       child: Row(
                         children: [
                           Icon(Icons.add_photo_alternate_outlined,
@@ -765,7 +809,7 @@ class _DocumentsCard extends StatelessWidget {
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
+                          crossAxisCount: 4,
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8,
                         ),
@@ -956,13 +1000,13 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
             ),
           ),
           const SizedBox(height: 18),
-          const Text('Upload Document',
+          const Text('Add Documents',
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                   color: AppConstants.nokiaBlue)),
           const SizedBox(height: 4),
-          const Text('Select type, then choose source',
+          const Text('Select type · Camera for burst · Gallery for multi-select',
               style: TextStyle(fontSize: 12, color: AppConstants.textGrey)),
           const SizedBox(height: 16),
           Wrap(
@@ -1034,7 +1078,7 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                 child: ElevatedButton.icon(
                   onPressed: widget.onGallery,
                   icon: const Icon(Icons.photo_library_rounded, size: 18),
-                  label: const Text('Choose File'),
+                  label: const Text('Select Multiple'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFEEF2FF),
                     foregroundColor: AppConstants.nokiaBlue,
