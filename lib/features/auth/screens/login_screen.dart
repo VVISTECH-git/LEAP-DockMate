@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/leap_theme.dart';
+import '../../../core/providers/locale_provider.dart';
 import '../../../core/services/otm_instance_service.dart';
 import '../services/auth_service.dart';
 import '../../shipment_groups/screens/shipment_groups_screen.dart';
@@ -161,6 +161,18 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  void _showLanguagePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ChangeNotifierProvider.value(
+        value: context.read<LocaleProvider>(),
+        child: const _LanguagePickerSheet(),
+      ),
+    );
+  }
+
   void _openInstancePicker() {
     showModalBottomSheet(
       context: context,
@@ -201,18 +213,34 @@ class _LoginScreenState extends State<LoginScreen>
           child: Stack(alignment: Alignment.center, children: [
             Positioned(
               top: 0, right: 0,
-              child: IconButton(
-                icon: Container(
-                  width: 34, height: 34,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                // Language picker
+                IconButton(
+                  icon: Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.language_outlined,
+                        color: Colors.white, size: 18),
                   ),
-                  child: const Icon(Icons.palette_outlined,
-                      color: Colors.white, size: 18),
+                  onPressed: () => _showLanguagePicker(context),
                 ),
-                onPressed: () => LeapThemePicker.show(context),
-              ),
+                // Theme picker
+                IconButton(
+                  icon: Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.palette_outlined,
+                        color: Colors.white, size: 18),
+                  ),
+                  onPressed: () => LeapThemePicker.show(context),
+                ),
+              ]),
             ),
             Column(children: [
               const Text('LEAP',
@@ -817,6 +845,104 @@ class _ScanSheetState extends State<_ScanSheet> {
                     fontSize: 11, color: t.textMuted))),
           ],
         ],
+      ]),
+    );
+  }
+}
+
+
+// ─── Language picker sheet ────────────────────────────────────────────────────
+
+class _LanguagePickerSheet extends StatelessWidget {
+  const _LanguagePickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final t        = context.read<LeapThemeProvider>().theme;
+    final provider = context.watch<LocaleProvider>();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface2,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+        Center(child: Container(
+          width: 36, height: 4,
+          decoration: BoxDecoration(
+            color: t.border, borderRadius: BorderRadius.circular(2)),
+        )),
+        const SizedBox(height: 18),
+
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Language',
+            style: TextStyle(fontFamily: 'PlusJakartaSans',
+                fontSize: 17, fontWeight: FontWeight.w800, color: t.text)),
+        ),
+        const SizedBox(height: 16),
+
+        // 2-column grid of language options
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 3.2,
+          ),
+          itemCount: LocaleProvider.languages.length,
+          itemBuilder: (_, i) {
+            final lang     = LocaleProvider.languages[i];
+            final code     = lang['code']!;
+            final selected = provider.locale.languageCode == code;
+
+            return GestureDetector(
+              onTap: () {
+                provider.setLocale(Locale(code));
+                Navigator.pop(context);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? t.primary.withValues(alpha: 0.08)
+                      : t.surface1,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected ? t.primary : t.border,
+                    width: selected ? 2 : 1.5,
+                  ),
+                ),
+                child: Row(children: [
+                  Text(lang['flag']!,
+                      style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(lang['name']!,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12, fontWeight: FontWeight.w600,
+                        color: selected ? t.primary : t.text,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (selected)
+                    Icon(Icons.check_circle_rounded,
+                        color: t.primary, size: 16),
+                ]),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
       ]),
     );
   }

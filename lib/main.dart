@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:leap_dockmate/features/auth/screens/splash_screen.dart';
 import 'package:leap_dockmate/features/shipment_groups/providers/shipment_groups_provider.dart';
-
-// ─── Unified LEAP theme system ────────────────────────────────────────────────
 import 'package:leap_dockmate/core/theme/leap_theme.dart';
+import 'package:leap_dockmate/core/providers/locale_provider.dart';
+import 'package:leap_dockmate/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,15 +22,17 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  // DockMate default theme: Forest Green (dock confirmed, calm authority)
-  // Users can switch to any of the 9 themes via LeapThemePicker.
-  final themeProvider = LeapThemeProvider(defaultTheme: LeapThemes.forest);
+  final themeProvider  = LeapThemeProvider(defaultTheme: LeapThemes.forest);
+  final localeProvider = LocaleProvider();
+
   unawaited(themeProvider.loadSavedTheme());
+  unawaited(localeProvider.loadSavedLocale());
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => ShipmentGroupsProvider()),
       ],
       child: const LeapDockMateApp(),
@@ -42,12 +45,24 @@ class LeapDockMateApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<LeapThemeProvider>();
+    final themeProvider  = context.watch<LeapThemeProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
 
     return MaterialApp(
       title: 'LEAP DockMate',
       debugShowCheckedModeBanner: false,
       theme: themeProvider.toMaterialTheme(),
+
+      // ── Localizations ──────────────────────────────────────────────
+      locale: localeProvider.locale,
+      supportedLocales: LocaleProvider.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
       home: const SplashScreen(),
     );
   }

@@ -729,6 +729,7 @@ class _DocumentsCard extends StatelessWidget {
                         border: Border.all(
                             color: AppConstants.nokiaBlue.withValues(alpha: 0.2)),
                       ),
+                      // ignore: prefer_const_constructors
                       child: Row(
                         children: [
                           Icon(Icons.add_photo_alternate_outlined,

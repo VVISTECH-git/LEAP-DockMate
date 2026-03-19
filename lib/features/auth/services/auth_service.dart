@@ -25,7 +25,7 @@ class AuthService {
     // "Invalid credentials", which is misleading for server-side errors.
     // Now we differentiate: 401/403 → bad credentials, everything else → server error.
     if (response.statusCode == 401 || response.statusCode == 403) {
-      throw AuthException(
+      throw const AuthException(
           'Invalid credentials. Please check your username and password.');
     } else if (response.statusCode != 200) {
       throw AuthException(

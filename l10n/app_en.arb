@@ -1,0 +1,107 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "LEAP DockMate",
+  "poweredBy": "Powered by Oracle OTM",
+
+  "signIn": "Sign In",
+  "username": "Username",
+  "password": "Password",
+  "usernameRequired": "Username is required",
+  "passwordRequired": "Password is required",
+  "instanceUrl": "Instance URL",
+  "advanced": "Advanced",
+  "invalidCredentials": "Invalid credentials. Please check your username and password.",
+  "serverError": "Server error ({code}). Please try again or contact your admin.",
+  "@serverError": {
+    "placeholders": {
+      "code": { "type": "int" }
+    }
+  },
+  "attemptsRemaining": "{count} attempt remaining before lockout",
+  "@attemptsRemaining": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "tryAgainIn": "Try again in {seconds}s",
+  "@tryAgainIn": {
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+
+  "otmInstance": "OTM Instance",
+  "swipeToRemove": "Swipe left to remove",
+  "scanNewInstance": "Scan new instance",
+  "savedInstances": "Saved instances",
+  "noInstancesSaved": "No instances saved yet",
+  "tapToSetupInstance": "Tap to set up OTM instance",
+  "confirmInstance": "Confirm instance",
+  "addOtmInstance": "Add OTM instance",
+  "saveAndUse": "Save & use this instance",
+  "scanAgain": "Scan again",
+  "scanQrCode": "Scan QR code",
+  "enterManually": "Enter manually",
+  "pointCamera": "Point camera at the OTM instance QR code",
+  "urlValidating": "URL will be validated as you type",
+  "urlNotRecognised": "URL not recognised as an OTM instance",
+
+  "otmProduction": "OTM Production",
+  "otmTest": "OTM Test",
+  "otmDevelopment": "OTM Development",
+  "otmDevelopmentN": "OTM Development {n}",
+  "@otmDevelopmentN": {
+    "placeholders": {
+      "n": { "type": "int" }
+    }
+  },
+
+  "shipmentGroups": "Shipment Groups",
+  "shipmentGroup": "SHIPMENT GROUP",
+  "shipments": "Shipments",
+  "groupId": "GROUP ID",
+  "inbound": "Inbound",
+  "outbound": "Outbound",
+  "inboundUpper": "INBOUND",
+  "outboundUpper": "OUTBOUND",
+  "showImporter": "Show IMPORTER shipment groups",
+  "showExporter": "Show EXPORTER shipment groups",
+  "assigned": "Assigned",
+  "start": "START",
+  "retry": "Retry",
+  "done": "Done",
+  "cancel": "Cancel",
+  "switchTeam": "Switch to {team}",
+  "@switchTeam": {
+    "placeholders": {
+      "team": { "type": "String" }
+    }
+  },
+
+  "plannedPickup": "Planned Pickup",
+  "plannedDelivery": "Planned Delivery",
+  "pickup": "PICKUP",
+  "delivery": "DELIVERY",
+  "weight": "Weight",
+  "volume": "Volume",
+
+  "documents": "Documents",
+  "addDocument": "Add Document",
+  "uploadDocument": "Upload Document",
+  "removeDocument": "Remove Document",
+  "remove": "Remove",
+  "takePhoto": "Take Photo",
+  "chooseFile": "Choose File",
+  "pod": "POD",
+  "bol": "BOL",
+  "invoice": "Invoice",
+  "packingList": "Packing List",
+  "inspection": "Inspection",
+  "customs": "Customs",
+  "other": "Other",
+
+  "authorization": "Authorization",
+  "changeTheme": "Change theme",
+  "language": "Language"
+}
