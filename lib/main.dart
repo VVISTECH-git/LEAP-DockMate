@@ -22,7 +22,7 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  final themeProvider  = LeapThemeProvider(defaultTheme: LeapThemes.forest);
+  final themeProvider  = LeapThemeProvider(defaultTheme: LeapThemes.navy);
   final localeProvider = LocaleProvider();
 
   unawaited(themeProvider.loadSavedTheme());

@@ -212,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen>
           ),
           child: Stack(alignment: Alignment.center, children: [
             Positioned(
-              top: 0, right: 0,
+              bottom: 0, right: 0,
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 // Language picker
                 IconButton(
