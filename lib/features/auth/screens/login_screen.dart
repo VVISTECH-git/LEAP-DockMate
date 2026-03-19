@@ -200,6 +200,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     return Scaffold(
       backgroundColor: t.surface1,
+      resizeToAvoidBottomInset: true,
       body: Column(children: [
 
         // ── LEAP brand header ──────────────────────────────────────────
@@ -287,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen>
             top: false,
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: EdgeInsets.fromLTRB(24, 0, 24, MediaQuery.of(context).viewInsets.bottom + 24),
                 child: FadeTransition(
                   opacity: _fadeAnim,
                   child: SlideTransition(

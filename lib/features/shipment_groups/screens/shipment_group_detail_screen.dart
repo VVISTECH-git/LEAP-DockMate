@@ -128,20 +128,20 @@ class _ShipmentGroupDetailScreenState
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Remove Document',
+        title: Text('Remove Document',
             style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: AppConstants.nokiaBlue,
+                color: context.read<LeapThemeProvider>().theme.primary,
                 fontSize: 16)),
         content: Text(
           'Remove "${_docs[index].docType}" document?',
-          style: const TextStyle(fontSize: 14, color: AppConstants.textGrey),
+          style: TextStyle(fontSize: 14, color: context.read<LeapThemeProvider>().theme.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: AppConstants.textGrey)),
+            child: Text('Cancel',
+                style: TextStyle(color: context.read<LeapThemeProvider>().theme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -242,7 +242,7 @@ class _ShipmentGroupDetailScreenState
     return Scaffold(
       backgroundColor: context.watch<LeapThemeProvider>().theme.surface1,
       appBar: AppBar(
-        backgroundColor: AppConstants.nokiaBlue,
+        backgroundColor: context.watch<LeapThemeProvider>().theme.navColor,
         elevation: 0,
         systemOverlayStyle: SystemUiOverlayStyle.light,
         leading: IconButton(
@@ -359,8 +359,8 @@ class _ShipmentGroupDetailScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              decoration: const BoxDecoration(
-                color: AppConstants.nokiaBlue,
+              decoration: BoxDecoration(
+                color: context.watch<LeapThemeProvider>().theme.navColor,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
@@ -416,6 +416,7 @@ class _UploadProgressButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
     return SizedBox(
       width: double.infinity,
       height: 54,
@@ -425,7 +426,7 @@ class _UploadProgressButton extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             // Blue base
-            Container(color: AppConstants.nokiaBlue), // theme-aware via appBar
+            Container(color: t.primary),
             // Green progress fill sliding in from left
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
@@ -474,11 +475,12 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.surface2,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppConstants.borderGrey, width: 1.5),
+        border: Border.all(color: t.border, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -496,39 +498,39 @@ class _InfoCard extends StatelessWidget {
                 Container(
                   width: 42, height: 42,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
+                    color: t.surface3,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Icon(Icons.tag_rounded,
-                        color: AppConstants.nokiaBlue, size: 20),
+                        color: t.primary, size: 20),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('GROUP ID',
+                    Text('GROUP ID',
                         style: TextStyle(
                             fontSize: 10,
-                            color: AppConstants.textGrey,
+                            color: t.textMuted,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.0)),
                     const SizedBox(height: 2),
                     Text(group.shipGroupXid,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
-                            color: AppConstants.nokiaBlue,
+                            color: t.primary,
                             letterSpacing: 0.3)),
                   ],
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFEEF2FF)),
+          Divider(height: 1, color: t.border),
           _RouteRow(from: group.displaySource, to: group.displayDest),
-          const Divider(height: 1, color: Color(0xFFEEF2FF)),
+          Divider(height: 1, color: t.border),
           _NormalRow(
             icon: Icons.schedule_outlined,
             label: 'Planned Pickup',
@@ -543,10 +545,10 @@ class _InfoCard extends StatelessWidget {
             icon: Icons.inventory_2_outlined,
             label: 'Shipments',
             value: '${group.numberOfShipments}',
-            valueStyle: const TextStyle(
+            valueStyle: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w900,
-              color: AppConstants.nokiaBlue,
+              color: t.primary,
             ),
           ),
           _NormalRow(
@@ -573,6 +575,7 @@ class _RouteRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -590,26 +593,26 @@ class _RouteRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Text('PICKUP',
+                  Text('PICKUP',
                       style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: AppConstants.textGrey,
+                          color: t.textMuted,
                           letterSpacing: 0.8)),
                 ]),
                 const SizedBox(height: 3),
                 Text(from,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1A1A2E))),
+                        color: t.text)),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Icon(Icons.arrow_forward_rounded,
-                color: AppConstants.textGrey.withValues(alpha: 0.5), size: 18),
+                color: t.textMuted.withValues(alpha: 0.5), size: 18),
           ),
           Expanded(
             child: Column(
@@ -618,11 +621,11 @@ class _RouteRow extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const Text('DELIVERY',
+                    Text('DELIVERY',
                         style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: AppConstants.textGrey,
+                            color: t.textMuted,
                             letterSpacing: 0.8)),
                     const SizedBox(width: 6),
                     Container(
@@ -666,32 +669,33 @@ class _NormalRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         border: last
             ? null
-            : const Border(bottom: BorderSide(color: Color(0x08000000))),
+            : Border(bottom: BorderSide(color: t.border.withValues(alpha: 0.5))),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: AppConstants.textGrey),
+          Icon(icon, size: 16, color: t.textMuted),
           const SizedBox(width: 10),
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
-                        color: AppConstants.textGrey,
+                        color: t.textMuted,
                         fontWeight: FontWeight.w500)),
                 Text(value,
                     style: valueStyle ??
-                        const TextStyle(
+                        TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A2E))),
+                            color: t.text)),
               ],
             ),
           ),
@@ -720,11 +724,12 @@ class _DocumentsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.surface2,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppConstants.borderGrey, width: 1.5),
+        border: Border.all(color: t.border, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -740,20 +745,20 @@ class _DocumentsCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Row(
               children: [
-                const Icon(Icons.attach_file_rounded,
-                    color: AppConstants.nokiaBlue, size: 18),
+                Icon(Icons.attach_file_rounded,
+                    color: t.primary, size: 18),
                 const SizedBox(width: 8),
-                const Text('Documents',
+                Text('Documents',
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.nokiaBlue)),
+                        color: t.primary)),
                 const Spacer(),
-                Text('${docs.length} / ${AppConstants.maxDocuments}',
-                    style: const TextStyle(
+                Text('\${docs.length} / \${AppConstants.maxDocuments}',
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppConstants.textGrey)),
+                        color: t.textMuted)),
               ],
             ),
           ),
@@ -772,14 +777,14 @@ class _DocumentsCard extends StatelessWidget {
                         color: const Color(0xFFEEF2FF),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: AppConstants.nokiaBlue.withValues(alpha: 0.2)),
+                            color: t.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
                           Icon(Icons.add_photo_alternate_outlined,
-                              color: AppConstants.nokiaBlue, size: 22),
+                              color: t.primary, size: 22),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -787,17 +792,17 @@ class _DocumentsCard extends StatelessWidget {
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
-                                        color: AppConstants.nokiaBlue)),
+                                        color: t.primary)),
                                 Text('Tap to upload POD, BOL, Invoice…',
                                     style: TextStyle(
                                         fontSize: 11,
-                                        color: AppConstants.textGrey)),
+                                        color: t.textMuted)),
                               ],
                             ),
                           ),
                           Icon(Icons.arrow_forward_ios_rounded,
                               size: 14,
-                              color: AppConstants.nokiaBlue.withValues(alpha: 0.5)),
+                              color: t.primary.withValues(alpha: 0.5)),
                         ],
                       ),
                     ),
@@ -835,9 +840,9 @@ class _DocumentsCard extends StatelessWidget {
                             label: Text(
                                 'Add Document (${docs.length}/${AppConstants.maxDocuments})'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: AppConstants.nokiaBlue,
-                              side: const BorderSide(
-                                  color: AppConstants.nokiaBlue),
+                              foregroundColor: t.primary,
+                              side: BorderSide(
+                                  color: t.primary),
                               padding:
                                   const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
@@ -980,10 +985,11 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.watch<LeapThemeProvider>().theme;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: theme.surface2,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(
           20, 20, 20, MediaQuery.of(context).padding.bottom + 24),
@@ -995,41 +1001,41 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
             child: Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
-                  color: AppConstants.borderGrey,
+                  color: theme.border,
                   borderRadius: BorderRadius.circular(2)),
             ),
           ),
           const SizedBox(height: 18),
-          const Text('Add Documents',
+          Text('Add Documents',
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: AppConstants.nokiaBlue)),
+                  color: theme.primary)),
           const SizedBox(height: 4),
-          const Text('Select type · Camera for burst · Gallery for multi-select',
-              style: TextStyle(fontSize: 12, color: AppConstants.textGrey)),
+          Text('Select type · Camera for burst · Gallery for multi-select',
+              style: TextStyle(fontSize: 12, color: theme.textMuted)),
           const SizedBox(height: 16),
           Wrap(
             spacing: 8,
             runSpacing: 10,
-            children: AppConstants.docTypes.map((t) {
-              final sel = _selected == t;
+            children: AppConstants.docTypes.map((docType) {
+              final sel = _selected == docType;
               return GestureDetector(
                 onTap: () {
-                  setState(() => _selected = t);
-                  widget.onTypeChanged(t);
+                  setState(() => _selected = docType);
+                  widget.onTypeChanged(docType);
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(
                       horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: sel ? AppConstants.nokiaBlue : AppConstants.bgGrey,
+                    color: sel ? theme.primary : theme.surface1,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: sel
-                          ? AppConstants.nokiaBlue
-                          : AppConstants.borderGrey,
+                          ? theme.primary
+                          : theme.border,
                       width: 1.5,
                     ),
                   ),
@@ -1041,7 +1047,7 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                             size: 13, color: Colors.white),
                         const SizedBox(width: 4),
                       ],
-                      Text(t,
+                      Text(docType,
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -1063,10 +1069,10 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                   icon: const Icon(Icons.camera_alt_rounded, size: 18),
                   label: const Text('Take Photo'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppConstants.nokiaBlue,
+                    backgroundColor: theme.primary,
                     foregroundColor: Colors.white,
                     elevation: 2,
-                    shadowColor: AppConstants.nokiaBlue.withValues(alpha: 0.3),
+                    shadowColor: theme.primary.withValues(alpha: 0.3),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -1080,8 +1086,8 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                   icon: const Icon(Icons.photo_library_rounded, size: 18),
                   label: const Text('Select Multiple'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEEF2FF),
-                    foregroundColor: AppConstants.nokiaBlue,
+                    backgroundColor: theme.surface3,
+                    foregroundColor: theme.primary,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(

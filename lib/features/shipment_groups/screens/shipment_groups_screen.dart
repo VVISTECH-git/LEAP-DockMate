@@ -206,9 +206,11 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
   }
 
   Widget _buildListMeta(BuildContext context) {
-    final t     = context.watch<LeapThemeProvider>().theme;
-    final count = context
-        .select<ShipmentGroupsProvider, int>((p) => p.groups.length);
+    final t       = context.watch<LeapThemeProvider>().theme;
+    final state   = context.select<ShipmentGroupsProvider, LoadState>((p) => p.state);
+    final count   = context.select<ShipmentGroupsProvider, int>((p) => p.groups.length);
+    // Don't show count while loading — prevents '0 GROUPS' flash
+    if (state == LoadState.loading) return const SizedBox(height: 4);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
       child: Text(
@@ -312,12 +314,28 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
     );
   }
 
-  Future<void> _logout(BuildContext context) async {
+  Future<void> _logout(BuildContext context, {bool sessionExpired = false}) async {
     await AuthService.instance.logout();
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    if (sessionExpired) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Session expired — please sign in again',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: context.read<LeapThemeProvider>().theme.warning,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(14),
+        duration: const Duration(seconds: 3),
+      ));
+      await Future.delayed(const Duration(seconds: 1));
+      if (!context.mounted) return;
+    }
+    Navigator.of(context).pushReplacement(PageRouteBuilder(
+      pageBuilder: (_, __, ___) => const LoginScreen(),
+      transitionsBuilder: (_, animation, __, child) =>
+          FadeTransition(opacity: animation, child: child),
+      transitionDuration: const Duration(milliseconds: 400),
+    ));
   }
 }
 
@@ -499,8 +517,20 @@ class _GroupCardState extends State<_GroupCard>
           HapticFeedback.lightImpact();
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => ShipmentGroupDetailScreen(group: g),
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => ShipmentGroupDetailScreen(group: g),
+              transitionsBuilder: (_, animation, __, child) {
+                final slide = Tween<Offset>(
+                  begin: const Offset(0, 0.06),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation, curve: Curves.easeOutCubic));
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: slide, child: child),
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 280),
             ),
           );
         },
@@ -569,8 +599,8 @@ class _GroupCardState extends State<_GroupCard>
                                   Text(
                                     g.shipGroupXid,
                                     style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w900,
                                       color: t.primary,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -624,7 +654,7 @@ class _GroupCardState extends State<_GroupCard>
                                   Text(
                                     '${g.numberOfShipments}',
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: 22,
                                       fontWeight: FontWeight.w900,
                                       color: t.primary,
                                       height: 1,
@@ -633,7 +663,7 @@ class _GroupCardState extends State<_GroupCard>
                                   Text(
                                     'Shipments',
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.w500,
                                       color: t.textMuted,
                                     ),
