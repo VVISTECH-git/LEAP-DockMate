@@ -1,5 +1,5 @@
 name: leap_dockmate
-description: LEAP - Dockmate
+description: LEAP DockMate — Dock Operations for Oracle OTM
 version: 7.0.0+7
 
 environment:
@@ -20,7 +20,7 @@ dependencies:
   # Date formatting
   intl: ^0.19.0
 
-  # State management (lightweight)
+  # State management
   provider: ^6.1.2
 
   # UI
@@ -33,6 +33,17 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # FIX: Removed 'assets: - assets/' declaration. The assets/ folder does not
-  # exist in this project and was causing build warnings. Add it back only if
-  # you create the folder and place actual asset files inside it.
+  assets:
+    - assets/fonts/
+
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800

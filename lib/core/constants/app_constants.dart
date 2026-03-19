@@ -27,9 +27,9 @@ class AppConstants {
       '/logisticsRestApi/resources-int/v2/documents';
 
   // ─── Document Upload ──────────────────────────────────────────────────────
-  static const int maxDocuments = 20;  // ← changed from 5 to 20
-  static const int imageQuality = 85;
-  static const int imageMaxWidth = 1920;
+  static const int maxDocuments   = 20;
+  static const int imageQuality   = 85;
+  static const int imageMaxWidth  = 1920;
   static const int imageMaxHeight = 1080;
 
   static const List<String> docTypes = [
@@ -37,15 +37,39 @@ class AppConstants {
     'Inspection', 'Customs', 'Other',
   ];
 
-  // ─── Nokia Brand Colors ───────────────────────────────────────────────────
-  static const Color nokiaBlue       = Color(0xFF124191); // Primary
-  static const Color nokiaBrightBlue = Color(0xFF005AFF); // Accent
-  static const Color navy            = Color(0xFF124191); // alias → nokiaBlue
-  static const Color blue            = Color(0xFF005AFF); // alias → nokiaBrightBlue
-  static const Color inboundGreen    = Color(0xFF0D7A4E);
-  static const Color outboundOrange  = Color(0xFFC45E00);
-  static const Color bgGrey          = Color(0xFFF4F6FB);
-  static const Color borderGrey      = Color(0xFFE2E8F0);
-  static const Color textGrey        = Color(0xFF8892A4);
-  static const Color errorRed        = Color(0xFFE01E35);
+  // ─── LEAP Platform Colours ────────────────────────────────────────────────
+  // Shared identity across Driver, Carrier and DockMate
+
+  static const Color leapNavy    = Color(0xFF0F1F3D); // platform nav/header
+  static const Color leapNavy2   = Color(0xFF162952);
+  static const Color leapOrange  = Color(0xFFF97316); // platform accent
+  static const Color leapSuccess = Color(0xFF10A868);
+  static const Color leapDanger  = Color(0xFFE01E35);
+  static const Color leapWarning = Color(0xFFF97316);
+  static const Color leapInfo    = Color(0xFF0EA5E9);
+  static const Color leapSurface = Color(0xFFF4F6FB);
+  static const Color leapBorder  = Color(0xFFD4DCE9);
+  static const Color leapMuted   = Color(0xFF7A8499);
+
+  // ─── DockMate Product Colours ─────────────────────────────────────────────
+  // Green = dock confirmed, complete, done
+  static const Color primary     = Color(0xFF0D7A4E);
+  static const Color primary2    = Color(0xFF10A868);
+
+  // ─── Semantic indicators ──────────────────────────────────────────────────
+  static const Color inboundGreen  = Color(0xFF0D7A4E);
+  static const Color outboundBlue  = Color(0xFF1847C2);
+
+  // ─── Convenience aliases (used throughout existing code) ──────────────────
+  static const Color navy        = leapNavy;
+  static const Color blue        = Color(0xFF1847C2);
+  static const Color bgGrey      = leapSurface;
+  static const Color borderGrey  = leapBorder;
+  static const Color textGrey    = leapMuted;
+  static const Color errorRed    = leapDanger;
+
+  // Legacy Nokia aliases — now map to LEAP tokens
+  static const Color nokiaBlue       = leapNavy;
+  static const Color nokiaBrightBlue = primary;
+  static const Color outboundOrange  = leapOrange;
 }
