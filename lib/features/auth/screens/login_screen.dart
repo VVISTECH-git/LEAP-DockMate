@@ -99,13 +99,14 @@ class _LoginScreenState extends State<LoginScreen>
       if (_lockoutCountdown <= 0) {
         t.cancel();
         _passwordCtrl.clear();
+        if (!mounted) return;
         setState(() {
           _isLockedOut = false; _failedAttempts = 0;
           _userIdError = false; _pwdError = false;
           _pwdErrorMsg = 'Password is required';
           _userIdErrorMsg = 'Username is required';
         });
-        FocusScope.of(context).requestFocus(_passwordFocus);
+        if (mounted) FocusScope.of(context).requestFocus(_passwordFocus);
       }
     });
   }
@@ -523,12 +524,19 @@ class _InstancePickerSheetState extends State<_InstancePickerSheet> {
   }
 
   void _scanNew() {
-    Navigator.pop(context);
+    // Capture everything needed BEFORE popping (while context is still alive)
+    final themeProvider = context.read<LeapThemeProvider>();
+    final onSelected    = widget.onSelected;
+    final nav           = Navigator.of(context);
+    nav.pop();
     showModalBottomSheet(
-      context: context,
+      context: nav.context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ScanSheet(onSaved: widget.onSelected),
+      builder: (_) => ChangeNotifierProvider.value(
+        value: themeProvider,
+        child: _ScanSheet(onSaved: onSelected),
+      ),
     );
   }
 
@@ -666,6 +674,13 @@ class _ScanSheetState extends State<_ScanSheet> {
   bool _scanned    = false;
   bool _showManual = false;
   OtmInstance? _parsed;
+  final _urlCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    super.dispose();
+  }
 
   void _onDetect(BarcodeCapture capture) {
     if (_scanned) return;
@@ -687,7 +702,7 @@ class _ScanSheetState extends State<_ScanSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.read<LeapThemeProvider>().theme;
+    final t = context.watch<LeapThemeProvider>().theme;
 
     return Container(
       decoration: BoxDecoration(
@@ -748,7 +763,10 @@ class _ScanSheetState extends State<_ScanSheet> {
           ),
           const SizedBox(height: 10),
           TextButton(
-            onPressed: () => setState(() { _parsed = null; _scanned = false; }),
+            onPressed: () {
+              _urlCtrl.clear();
+              setState(() { _parsed = null; _scanned = false; });
+            },
             child: Text('Scan again', style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
                 color: t.primary, fontWeight: FontWeight.w600)),
@@ -814,9 +832,11 @@ class _ScanSheetState extends State<_ScanSheet> {
                 border: Border.all(color: t.border, width: 1.5),
               ),
               child: TextField(
+                controller: _urlCtrl,
                 onChanged: (v) {
                   final inst = OtmInstanceService.parse(v);
-                  if (mounted) setState(() => _parsed = inst);
+                  if (!mounted) return;
+                  setState(() => _parsed = inst);
                 },
                 style: TextStyle(fontFamily: 'PlusJakartaSans',
                     fontSize: 13, color: t.text),
