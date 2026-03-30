@@ -11,6 +11,14 @@ class AuthService {
     required String userId,
     required String password,
   }) async {
+    // Security: reject non-HTTPS URLs — Basic Auth over HTTP sends credentials
+    // in base64 plaintext, which is trivially decodable by any network observer.
+    if (!instanceUrl.trim().toLowerCase().startsWith('https://')) {
+      throw const AuthException(
+        'Insecure connection rejected. Your OTM instance URL must start with https://.',
+      );
+    }
+
     final upperId    = userId.trim().toUpperCase();
     final authHeader = SessionService.buildBasicAuth(upperId, password.trim());
     final validationUrl =
@@ -26,7 +34,7 @@ class AuthService {
     // Now we differentiate: 401/403 → bad credentials, everything else → server error.
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw const AuthException(
-          'Invalid credentials. Please check your username and password.');
+          'Incorrect username or password. Please try again.');
     } else if (response.statusCode != 200) {
       throw AuthException(
           'Server error (${response.statusCode}). Please try again or contact your admin.');
@@ -39,7 +47,7 @@ class AuthService {
     );
   }
 
-  Future<void> logout() => SessionService.instance.clear();
+  Future<void> logout() => SessionService.instance.softLogout();
 }
 
 class AuthException implements Exception {

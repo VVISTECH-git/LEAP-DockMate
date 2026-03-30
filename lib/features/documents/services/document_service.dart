@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/services/session_service.dart';
 
 class DocumentUploadResult {
   final int successCount;
   final int totalCount;
-  // FIX: Added per-file status list so the UI can show ✅/❌ on each thumbnail.
   final List<bool> fileResults;
 
   const DocumentUploadResult({
@@ -27,23 +26,17 @@ class DocumentService {
   DocumentService._();
   static final DocumentService instance = DocumentService._();
 
-  /// Uploads documents to OTM one by one.
-  /// [onProgress] is called AFTER each file completes (not before),
-  /// so the progress bar reflects actual completed uploads.
+  /// Uploads documents to OTM one by one via ApiClient so that:
+  /// • 401 responses auto-redirect to login (session expiry handled)
+  /// • updateLastActive() is called on every successful upload
   Future<DocumentUploadResult> uploadDocuments({
     required String shipGroupGid,
     required List<DocumentFile> files,
-    // FIX: onProgress now passes (completedCount, totalCount) called AFTER
-    // each file finishes — previously it was called BEFORE, making the bar
-    // jump ahead before any work was done on that file.
     void Function(int done, int total)? onProgress,
   }) async {
-    final baseUrl    = await SessionService.instance.instanceUrl;
-    final authHeader = await SessionService.instance.authHeader;
-    final domain     = await SessionService.instance.domain;
+    final domain = await SessionService.instance.domain;
 
     int successCount = 0;
-    // FIX: Track per-file result so UI can show ✅/❌ on each thumbnail.
     final fileResults = List<bool>.filled(files.length, false);
 
     for (int i = 0; i < files.length; i++) {
@@ -56,18 +49,29 @@ class DocumentService {
         final now         = DateTime.now();
         final documentXid = '${DateFormat('yyyyMMdd-HHmmss').format(now)}-$i';
         final ext         = file.file.path.split('.').last.toLowerCase();
+
+        // Security: reject before reading file bytes or calling _resolveMimeType.
+        if (!_allowedExtensions.contains(ext)) {
+          fileResults[i] = false;
+          if (kDebugMode) {
+            debugPrint('Upload rejected for file $i: unsupported extension .$ext');
+          }
+          onProgress?.call(i + 1, files.length);
+          continue;
+        }
+
         final mimeType    = _resolveMimeType(ext);
 
         final payload = {
-          'documentXid':               documentXid,
-          'documentType':              'BLOB',
-          'documentMimeType':          mimeType,
-          'documentFilename':          file.file.uri.pathSegments.last,
-          'ownerDataQueryTypeGid':     'SHIPMENT GROUP',
-          'ownerObjectGid':            shipGroupGid,
-          'domainName':                domain,
-          'contentManagementSystemGid':'DATABASE',
-          'usedAs':                    'I',
+          'documentXid':                documentXid,
+          'documentType':               'BLOB',
+          'documentMimeType':           mimeType,
+          'documentFilename':           file.file.uri.pathSegments.last,
+          'ownerDataQueryTypeGid':      'SHIPMENT GROUP',
+          'ownerObjectGid':             shipGroupGid,
+          'domainName':                 domain,
+          'contentManagementSystemGid': 'DATABASE',
+          'usedAs':                     'I',
           'contents': {
             'items': [
               {
@@ -78,31 +82,23 @@ class DocumentService {
           },
         };
 
-        final response = await http.post(
-          Uri.parse('$baseUrl${AppConstants.pathDocuments}'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authHeader,
-          },
-          body: jsonEncode(payload),
-        ).timeout(const Duration(seconds: 90));
+        // Route through ApiClient so 401 → auto-redirect and lastActive is updated.
+        await ApiClient.instance.post(
+          AppConstants.pathDocuments,
+          body: payload,
+        );
 
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          successCount++;
-          fileResults[i] = true;
-        } else {
-          fileResults[i] = false;
-          if (kDebugMode) {
-            debugPrint('Upload failed [${response.statusCode}]: ${response.body}');
-          }
-        }
+        successCount++;
+        fileResults[i] = true;
+      } on ApiException catch (e) {
+        fileResults[i] = false;
+        if (kDebugMode) debugPrint('Upload failed for file $i: ${e.message}');
       } catch (e) {
         fileResults[i] = false;
-        if (kDebugMode) debugPrint('Upload exception for file $i: $e');
+        final friendly = ApiClient.friendlyNetworkMessage(e);
+        if (kDebugMode) debugPrint('Upload error for file $i: $friendly');
       }
 
-      // FIX: onProgress called AFTER the file completes, not before.
-      // This means the bar accurately reflects how many files are truly done.
       onProgress?.call(i + 1, files.length);
     }
 
@@ -113,8 +109,11 @@ class DocumentService {
     );
   }
 
-  /// Resolves correct MIME type from file extension.
-  /// 'jpg' → 'image/jpeg' (not 'image/jpg' which is invalid).
+  // Security: explicit allowlist of permitted upload extensions.
+  static const _allowedExtensions = {
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic',
+  };
+
   static String _resolveMimeType(String ext) {
     switch (ext.toLowerCase()) {
       case 'jpg':
@@ -123,9 +122,17 @@ class DocumentService {
       case 'gif':   return 'image/gif';
       case 'webp':  return 'image/webp';
       case 'heic':  return 'image/heic';
-      default:      return 'image/$ext';
+      default:
+        throw DocumentUploadException('Unsupported file type: .$ext');
     }
   }
+}
+
+class DocumentUploadException implements Exception {
+  final String message;
+  const DocumentUploadException(this.message);
+  @override
+  String toString() => message;
 }
 
 class DocumentFile {

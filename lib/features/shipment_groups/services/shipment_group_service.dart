@@ -8,99 +8,73 @@ class ShipmentGroupService {
   ShipmentGroupService._();
   static final ShipmentGroupService instance = ShipmentGroupService._();
 
-  Future<List<ShipmentGroup>> fetchGroups({int limit = 100, int offset = 0}) async {
-    // FIX: All debugPrint calls wrapped in kDebugMode — no logging in production builds.
+  /// Fetches shipment groups filtered server-side by direction (INBOUND/OUTBOUND).
+  /// Excludes groups where attributeDate2 is set (already loaded + left premises).
+  Future<List<ShipmentGroup>> fetchGroups({
+    required String direction, // "INBOUND" or "OUTBOUND"
+    int limit  = 100,
+    int offset = 0,
+  }) async {
+    final query = Uri.encodeComponent('attribute5 eq "$direction" and not attributeDate2 pr');
+    final path  = '${AppConstants.pathShipmentGroups}'
+        '?limit=$limit&offset=$offset'
+        '&q=$query'
+        '&expand=refnums,sourceLocation,destLocation'
+        '&fields=shipGroupXid,domainName,numberOfShipments,totalWeight,totalVolume,'
+        'attributeNumber1,attribute2,attribute5,attributeDate5,attributeDate6,refnums,'
+        'sourceLocation.locationName,destLocation.locationName';
+
     if (kDebugMode) {
-      debugPrint('=== fetchGroups START ===');
-      debugPrint('URL: ${AppConstants.pathShipmentGroups}?limit=$limit&offset=$offset&expand=statuses,refnums');
+      debugPrint('=== fetchGroups ($direction) ===');
+      debugPrint('path: $path');
     }
 
-    final data = await ApiClient.instance.get(
-      '${AppConstants.pathShipmentGroups}?limit=$limit&offset=$offset&expand=statuses,refnums',
-    );
+    final data  = await ApiClient.instance.get(path);
 
-    if (kDebugMode) {
-      debugPrint('=== fetchGroups RESPONSE ===');
-      debugPrint('count: ${data['count']}');
-      debugPrint('hasMore: ${data['hasMore']}');
+    if (data is! Map<String, dynamic>) {
+      if (kDebugMode) debugPrint('fetchGroups: unexpected response type: ${data.runtimeType}');
+      return [];
     }
+    final rawItems = data['items'];
+    if (rawItems != null && rawItems is! List) {
+      if (kDebugMode) debugPrint('fetchGroups: items is not a List — got ${rawItems.runtimeType}');
+      return [];
+    }
+    final items = (rawItems as List<dynamic>?) ?? [];
 
-    final items = (data['items'] as List<dynamic>?) ?? [];
-    if (kDebugMode) debugPrint('items length: ${items.length}');
+    if (kDebugMode) debugPrint('items: ${items.length}');
 
-    final groups = items
-        .map((j) => ShipmentGroup.fromJson(j as Map<String, dynamic>))
-        .toList();
-
-    if (kDebugMode) {
-      debugPrint('parsed groups: ${groups.length}');
-      for (final g in groups) {
-        debugPrint('  → ${g.shipGroupXid} | type: ${g.shipGroupTypeGid} | inbound: ${g.isInbound}');
+    // Location names are expanded inline — no extra round-trips needed.
+    final groups = <ShipmentGroup>[];
+    for (int i = 0; i < items.length; i++) {
+      try {
+        final j = items[i];
+        if (j is! Map<String, dynamic>) continue;
+        groups.add(ShipmentGroup.fromJson(j));
+      } catch (e) {
+        if (kDebugMode) debugPrint('fetchGroups: parse error at index $i: $e');
       }
     }
-
-    // Hydrate location names
-    return _hydrateLocationNames(groups);
+    return groups;
   }
 
+  /// Fetches a single group by GID with location names resolved inline.
   Future<ShipmentGroup> fetchById(String groupId) async {
     final domain = await SessionService.instance.domain;
-    final gid = groupId.contains('.') ? groupId : '$domain.$groupId';
+    final gid    = groupId.contains('.') ? groupId : '$domain.$groupId';
 
     if (kDebugMode) debugPrint('=== fetchById: $gid ===');
 
-    final data = await ApiClient.instance
-        .get('${AppConstants.pathShipmentGroups}/$gid');
+    const fields = 'shipGroupXid,domainName,numberOfShipments,totalWeight,totalVolume,'
+        'attributeNumber1,attribute2,attribute5,attributeDate5,attributeDate6,'
+        'refnums,sourceLocation.locationName,destLocation.locationName';
 
-    final group = ShipmentGroup.fromJson(data as Map<String, dynamic>);
-
-    final names = await Future.wait([
-      _fetchLocationName(group.sourceLocation),
-      _fetchLocationName(group.destinationLocation),
-    ]);
-
-    return group.copyWith(
-      sourceLocationName: names[0],
-      destLocationName:   names[1],
+    final data = await ApiClient.instance.get(
+      '${AppConstants.pathShipmentGroups}/$gid'
+      '?expand=refnums,sourceLocation,destLocation'
+      '&fields=$fields',
     );
-  }
 
-  Future<String> _fetchLocationName(String locationGid) async {
-    if (locationGid.isEmpty) return '';
-    try {
-      if (kDebugMode) debugPrint('=== fetchLocationName: $locationGid ===');
-      final data = await ApiClient.instance.get(
-        '${AppConstants.pathLocations}/$locationGid?fields=locationName',
-      );
-      final n = data['locationName'];
-      final name = (n is Map ? n['value'] : n)?.toString() ?? locationGid;
-      if (kDebugMode) debugPrint('  → name: $name');
-      return name;
-    } catch (e) {
-      if (kDebugMode) debugPrint('  → error: $e, falling back to GID');
-      return locationGid;
-    }
-  }
-
-  Future<List<ShipmentGroup>> _hydrateLocationNames(
-      List<ShipmentGroup> groups) async {
-    final gids = <String>{
-      for (final g in groups) ...[
-        if (g.sourceLocation.isNotEmpty) g.sourceLocation,
-        if (g.destinationLocation.isNotEmpty) g.destinationLocation,
-      ],
-    };
-
-    if (kDebugMode) debugPrint('=== hydrateLocationNames: ${gids.length} unique GIDs ===');
-
-    final nameMap = <String, String>{};
-    await Future.wait(gids.map((gid) async {
-      nameMap[gid] = await _fetchLocationName(gid);
-    }));
-
-    return groups.map((g) => g.copyWith(
-      sourceLocationName: nameMap[g.sourceLocation] ?? g.sourceLocation,
-      destLocationName:   nameMap[g.destinationLocation] ?? g.destinationLocation,
-    )).toList();
+    return ShipmentGroup.fromJson(data as Map<String, dynamic>);
   }
 }

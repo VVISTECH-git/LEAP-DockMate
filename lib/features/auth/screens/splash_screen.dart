@@ -4,8 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:leap_dockmate/core/theme/leap_theme.dart';
 import 'package:leap_dockmate/core/services/session_service.dart';
-import 'package:leap_dockmate/features/shipment_groups/screens/shipment_groups_screen.dart';
-import 'login_screen.dart';
+import '../../../l10n/app_localizations.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LEAP DockMate — Splash Screen (theme-aware)
@@ -68,20 +67,23 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkSession() async {
-    bool isLoggedIn = false;
+    bool goToHome = false;
     try {
-      isLoggedIn = await SessionService.instance.isLoggedIn;
+      final loggedIn = await SessionService.instance.isLoggedIn;
+      if (loggedIn) {
+        final expired = await SessionService.instance.isInactivityExpired();
+        if (expired) {
+          // Keep username/instance for pre-fill but clear the auth token.
+          await SessionService.instance.softLogout();
+        } else {
+          goToHome = true;
+        }
+      }
     } catch (_) {
       try { await SessionService.instance.clear(); } catch (_) {}
     }
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(PageRouteBuilder(
-      pageBuilder: (_, __, ___) =>
-          isLoggedIn ? const ShipmentGroupsScreen() : const LoginScreen(),
-      transitionsBuilder: (_, anim, __, child) =>
-          FadeTransition(opacity: anim, child: child),
-      transitionDuration: const Duration(milliseconds: 500),
-    ));
+    Navigator.of(context).pushReplacementNamed(goToHome ? '/home' : '/login');
   }
 
   @override
@@ -222,7 +224,7 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text('Powered by Oracle OTM',
+                      Text(AppLocalizations.of(context)!.poweredBy,
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans', fontSize: 11,
                           fontWeight: FontWeight.w600,

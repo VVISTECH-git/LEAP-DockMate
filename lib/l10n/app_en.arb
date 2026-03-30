@@ -1,9 +1,7 @@
 {
   "@@locale": "en",
-
   "appTitle": "LEAP DockMate",
   "poweredBy": "Powered by Oracle OTM",
-
   "signIn": "Sign In",
   "username": "Username",
   "password": "Password",
@@ -15,22 +13,27 @@
   "serverError": "Server error ({code}). Please try again or contact your admin.",
   "@serverError": {
     "placeholders": {
-      "code": { "type": "int" }
+      "code": {
+        "type": "int"
+      }
     }
   },
   "attemptsRemaining": "{count} attempt remaining before lockout",
   "@attemptsRemaining": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "tryAgainIn": "Try again in {seconds}s",
   "@tryAgainIn": {
     "placeholders": {
-      "seconds": { "type": "int" }
+      "seconds": {
+        "type": "int"
+      }
     }
   },
-
   "otmInstance": "OTM Instance",
   "swipeToRemove": "Swipe left to remove",
   "scanNewInstance": "Scan new instance",
@@ -46,17 +49,17 @@
   "pointCamera": "Point camera at the OTM instance QR code",
   "urlValidating": "URL will be validated as you type",
   "urlNotRecognised": "URL not recognised as an OTM instance",
-
   "otmProduction": "OTM Production",
   "otmTest": "OTM Test",
   "otmDevelopment": "OTM Development",
   "otmDevelopmentN": "OTM Development {n}",
   "@otmDevelopmentN": {
     "placeholders": {
-      "n": { "type": "int" }
+      "n": {
+        "type": "int"
+      }
     }
   },
-
   "shipmentGroups": "Shipment Groups",
   "shipmentGroup": "SHIPMENT GROUP",
   "shipments": "Shipments",
@@ -75,17 +78,17 @@
   "switchTeam": "Switch to {team}",
   "@switchTeam": {
     "placeholders": {
-      "team": { "type": "String" }
+      "team": {
+        "type": "String"
+      }
     }
   },
-
   "plannedPickup": "Planned Pickup",
   "plannedDelivery": "Planned Delivery",
   "pickup": "PICKUP",
   "delivery": "DELIVERY",
   "weight": "Weight",
   "volume": "Volume",
-
   "documents": "Documents",
   "addDocument": "Add Document",
   "uploadDocument": "Upload Document",
@@ -100,8 +103,25 @@
   "inspection": "Inspection",
   "customs": "Customs",
   "other": "Other",
-
   "authorization": "Authorization",
   "changeTheme": "Change theme",
-  "language": "Language"
+  "language": "Language",
+  "searchHint": "Search shipment groups…",
+  "noInboundGroups": "No inbound groups",
+  "noOutboundGroups": "No outbound groups",
+  "noGroupsFound": "No groups found",
+  "apptStart": "APPT START",
+  "apptEnd": "APPT END",
+  "shipUnits": "SHIP UNITS",
+  "truckPlate": "TRUCK PLATE",
+  "dockDoor": "DOCK DOOR",
+  "from": "FROM",
+  "to": "TO",
+  "fetchingShipments": "Fetching shipments…",
+  "noShipmentsFound": "No shipments found",
+  "uploadSuccess": "Document uploaded successfully",
+  "uploadFailure": "Failed to upload document",
+  "uploadCancelled": "Upload cancelled",
+  "removeSuccess": "Document removed",
+  "removeFailure": "Failed to remove document"
 }

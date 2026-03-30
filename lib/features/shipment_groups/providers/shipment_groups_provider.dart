@@ -6,53 +6,46 @@ import '../../../core/services/session_service.dart';
 enum LoadState { idle, loading, success, error }
 
 class ShipmentGroupsProvider extends ChangeNotifier {
-  List<ShipmentGroup> _allGroups = [];
+  /// Static weak reference so ApiClient can call reset() without BuildContext.
+  static ShipmentGroupsProvider? instanceForReset;
+  List<ShipmentGroup> _groups = [];
   LoadState _state = LoadState.idle;
-  String _error    = '';
+  String    _error = '';
 
-  // Team is now derived from shipGroupTypeGid — not stored separately
-  // 'inbound' shows IMPORTER groups, 'outbound' shows EXPORTER groups
-  // FIX: Default changed from 'outbound' to 'inbound' to match SessionService.lastTeam
-  // default of 'inbound'. Both were contradicting each other before.
-  String _team        = 'inbound';
+  ShipmentGroupsProvider() { instanceForReset = this; }
+
+  @override
+  void dispose() {
+    if (instanceForReset == this) instanceForReset = null;
+    super.dispose();
+  }
+
+  // Default: OUTBOUND on first login.
+  String _team        = 'outbound';
   String _searchQuery = '';
 
   // ─── Getters ──────────────────────────────────────────────────────────────
 
-  LoadState get state  => _state;
-  String get error     => _error;
-  String get team      => _team;
+  LoadState get state    => _state;
+  String get error       => _error;
+  String get team        => _team;
   String get searchQuery => _searchQuery;
-  bool get isInbound   => _team == 'inbound';
+  bool get isInbound     => _team == 'inbound';
 
   List<ShipmentGroup> get groups {
-    // Filter by team first — IMPORTER = inbound, EXPORTER = outbound
-    // FIX: Unknown type groups (neither IMPORTER nor EXPORTER) are now shown
-    // under the current team rather than being silently dropped from both lists.
-    var list = _allGroups.where((g) {
-      if (g.isUnknown) return true; // show unknowns rather than hiding them
-      return isInbound ? g.isInbound : g.isOutbound;
-    }).toList();
-
-    // Then apply search
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list.where((g) =>
-          g.shipGroupXid.toLowerCase().contains(q) ||
-          g.displaySource.toLowerCase().contains(q) ||
-          g.displayDest.toLowerCase().contains(q)).toList();
-    }
-
-    return list;
+    if (_searchQuery.isEmpty) return _groups;
+    final q = _searchQuery.toLowerCase();
+    return _groups.where((g) =>
+        g.shipGroupXid.toLowerCase().contains(q) ||
+        g.truckPlate.toLowerCase().contains(q)).toList();
   }
-
-  int get inboundCount  => _allGroups.where((g) => g.isInbound).length;
-  int get outboundCount => _allGroups.where((g) => g.isOutbound).length;
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   Future<void> init() async {
-    _team = await SessionService.instance.lastTeam;
+    // Restore last used team, fallback to outbound.
+    final saved = await SessionService.instance.lastTeam;
+    _team = saved.isNotEmpty ? saved : 'outbound';
     await load();
   }
 
@@ -62,12 +55,10 @@ class ShipmentGroupsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _allGroups = await ShipmentGroupService.instance.fetchGroups();
-      // FIX: debugPrint guarded by kDebugMode
-      if (kDebugMode) {
-        debugPrint('Provider: loaded ${_allGroups.length} total groups');
-        debugPrint('  inbound: $inboundCount | outbound: $outboundCount');
-      }
+      _groups = await ShipmentGroupService.instance.fetchGroups(
+        direction: isInbound ? 'INBOUND' : 'OUTBOUND',
+      );
+      if (kDebugMode) debugPrint('Provider: loaded ${_groups.length} groups ($_team)');
       _state = LoadState.success;
     } catch (e) {
       if (kDebugMode) debugPrint('Provider error: $e');
@@ -78,15 +69,27 @@ class ShipmentGroupsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Switch tab and trigger a fresh server-side fetch.
   Future<void> switchTeam() async {
-    _team = _team == 'inbound' ? 'outbound' : 'inbound';
-    await SessionService.instance.setLastTeam(_team);
+    _team        = isInbound ? 'outbound' : 'inbound';
     _searchQuery = '';
-    notifyListeners(); // no reload needed — filtering happens client-side
+    await SessionService.instance.setLastTeam(_team);
+    await load();
   }
 
   void setSearch(String query) {
     _searchQuery = query;
+    notifyListeners();
+  }
+
+  /// Wipes in-memory state so a re-login on a different account never
+  /// sees the previous user's shipment groups.
+  void reset() {
+    _groups      = [];
+    _state       = LoadState.idle;
+    _error       = '';
+    _team        = 'outbound';
+    _searchQuery = '';
     notifyListeners();
   }
 }

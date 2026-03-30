@@ -137,10 +137,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get outboundUpper => 'OUTBOUND';
 
   @override
-  String get showImporter => 'Show IMPORTER shipment groups';
+  String get showImporter => 'Show inbound shipment groups';
 
   @override
-  String get showExporter => 'Show EXPORTER shipment groups';
+  String get showExporter => 'Show outbound shipment groups';
 
   @override
   String get assigned => 'Assigned';
@@ -159,14 +159,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String switchTeam(String team) {
-    return 'Switch to $team';
+    return 'Yes, Switch';
   }
 
   @override
-  String get plannedPickup => 'Planned Pickup';
+  String get switchView => 'Switch View';
 
   @override
-  String get plannedDelivery => 'Planned Delivery';
+  String get plannedPickup => 'Appt. Start';
+
+  @override
+  String get plannedDelivery => 'Appt. End';
 
   @override
   String get pickup => 'PICKUP';
@@ -230,4 +233,58 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get language => 'Language';
+
+  @override
+  String get searchHint => 'Search shipment groups…';
+
+  @override
+  String get noInboundGroups => 'No inbound groups';
+
+  @override
+  String get noOutboundGroups => 'No outbound groups';
+
+  @override
+  String get noGroupsFound => 'No groups found';
+
+  @override
+  String get apptStart => 'APPT START';
+
+  @override
+  String get apptEnd => 'APPT END';
+
+  @override
+  String get shipUnits => 'SHIP UNITS';
+
+  @override
+  String get truckPlate => 'TRUCK PLATE';
+
+  @override
+  String get dockDoor => 'DOCK DOOR';
+
+  @override
+  String get from => 'FROM';
+
+  @override
+  String get to => 'TO';
+
+  @override
+  String get fetchingShipments => 'Fetching shipments…';
+
+  @override
+  String get noShipmentsFound => 'No shipments found';
+
+  @override
+  String get uploadSuccess => 'Document uploaded successfully';
+
+  @override
+  String get uploadFailure => 'Failed to upload document';
+
+  @override
+  String get uploadCancelled => 'Upload cancelled';
+
+  @override
+  String get removeSuccess => 'Document removed';
+
+  @override
+  String get removeFailure => 'Failed to remove document';
 }

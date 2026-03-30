@@ -4,12 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/leap_theme.dart';
-import '../../../core/providers/locale_provider.dart';
+
 import '../models/shipment_group_model.dart';
 import '../providers/shipment_groups_provider.dart';
 import 'shipment_group_detail_screen.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../auth/services/auth_service.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ShipmentGroupsScreen extends StatefulWidget {
   const ShipmentGroupsScreen({super.key});
@@ -45,7 +46,6 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
           children: [
             _buildAppBar(context),
             _buildSearchBar(context),
-            _buildListMeta(context),
             const Expanded(child: _GroupList()),
           ],
         ),
@@ -59,14 +59,73 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
     final isIB     = provider.isInbound;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 16),
       color: t.navColor,
       child: Row(
         children: [
+          // ── LEAP DockMate branding ────────────────────────────────
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('LEAP',
+                    style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 8,
+                        height: 1.0)),
+                const SizedBox(height: 3),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                      width: 16, height: 1.5,
+                      color: t.accent),
+                  const SizedBox(width: 6),
+                  Text('DOCKMATE',
+                      style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: t.accent,
+                          letterSpacing: 4)),
+                  const SizedBox(width: 6),
+                  Container(
+                      width: 16, height: 1.5,
+                      color: t.accent),
+                ]),
+              ],
+            ),
+          ),
+
+          // ── Badge ────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: isIB
+                  ? const Color(0xFFE8F7F1)
+                  : const Color(0xFFFFF3E8),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              isIB ? AppLocalizations.of(context)!.inboundUpper
+                   : AppLocalizations.of(context)!.outboundUpper,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: isIB
+                    ? AppConstants.inboundGreen
+                    : AppConstants.outboundOrange,
+              ),
+            ),
+          ),
+          // ── Switch button ─────────────────────────────────────────
           GestureDetector(
             onTap: () => _confirmSwitch(context, provider),
             child: Container(
               width: 34, height: 34,
+              margin: const EdgeInsets.only(left: 4),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(9),
@@ -79,65 +138,18 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('LEAP',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 3,
-                        height: 1.1)),
-                Text('DockMate',
-                    style: TextStyle(
-                        color: Color(0xFF7EB3FF),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                        height: 1.1)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: isIB
-                  ? const Color(0xFFE8F7F1)
-                  : const Color(0xFFFFF3E8),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              isIB ? 'INBOUND' : 'OUTBOUND',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: isIB
-                    ? AppConstants.inboundGreen
-                    : AppConstants.outboundOrange,
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
+          // ── Theme ────────────────────────────────────────────────
           IconButton(
-            icon: const Icon(Icons.refresh_rounded,
+            icon: const Icon(Icons.palette_outlined,
                 color: Colors.white, size: 22),
-            onPressed: () =>
-                context.read<ShipmentGroupsProvider>().load(),
+            tooltip: 'Change theme',
+            onPressed: () => LeapThemePicker.show(context),
           ),
-          // Settings — theme + language
-          IconButton(
-            icon: const Icon(Icons.tune_rounded,
-                color: Colors.white, size: 22),
-            onPressed: () => _showSettings(context),
-          ),
+          // ── Logout ───────────────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.logout_rounded,
                 color: Colors.white, size: 22),
-            onPressed: () => _logout(context),
+            onPressed: _logout,
           ),
         ],
       ),
@@ -173,7 +185,7 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
                 ),
                 decoration: InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'Search group ID, source, destination…',
+                  hintText: 'Search group ID, truck plate…',
                   hintStyle: TextStyle(
                     color: t.textMuted.withValues(alpha: 0.7),
                     fontSize: 13,
@@ -205,46 +217,8 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
     );
   }
 
-  Widget _buildListMeta(BuildContext context) {
-    final t       = context.watch<LeapThemeProvider>().theme;
-    final state   = context.select<ShipmentGroupsProvider, LoadState>((p) => p.state);
-    final count   = context.select<ShipmentGroupsProvider, int>((p) => p.groups.length);
-    // Don't show count while loading — prevents '0 GROUPS' flash
-    if (state == LoadState.loading) return const SizedBox(height: 4);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-      child: Text(
-        '$count GROUP${count != 1 ? 'S' : ''}',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: t.textMuted,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
 
-  void _showSettings(BuildContext context) {
-    final t = context.read<LeapThemeProvider>().theme;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => MultiProvider(
-        providers: [
-          ChangeNotifierProvider.value(
-              value: context.read<LeapThemeProvider>()),
-          ChangeNotifierProvider.value(
-              value: context.read<LocaleProvider>()),
-        ],
-        child: _SettingsSheet(theme: t),
-      ),
-    );
-  }
-
-  void _confirmSwitch(
-      BuildContext context, ShipmentGroupsProvider provider) {
+  void _confirmSwitch(BuildContext context, ShipmentGroupsProvider provider) {
     final t = context.read<LeapThemeProvider>().theme;
     HapticFeedback.lightImpact();
     showModalBottomSheet(
@@ -259,7 +233,7 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Switch to ${provider.isInbound ? 'Outbound' : 'Inbound'}?',
+              AppLocalizations.of(context)!.switchView,
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -268,8 +242,8 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
             const SizedBox(height: 6),
             Text(
               provider.isInbound
-                  ? 'Show EXPORTER shipment groups'
-                  : 'Show IMPORTER shipment groups',
+                  ? AppLocalizations.of(context)!.showExporter
+                  : AppLocalizations.of(context)!.showImporter,
               style: TextStyle(fontSize: 13, color: t.textMuted),
             ),
             const SizedBox(height: 20),
@@ -284,7 +258,7 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Text('Cancel',
+                    child: Text(AppLocalizations.of(context)!.cancel,
                         style: TextStyle(color: t.textMuted)),
                   ),
                 ),
@@ -302,8 +276,9 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Switch',
-                        style: TextStyle(color: Colors.white)),
+                    child: Text(AppLocalizations.of(context)!.switchTeam(
+                        provider.isInbound ? 'Outbound' : 'Inbound'),
+                        style: const TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
@@ -314,28 +289,76 @@ class _ShipmentGroupsScreenState extends State<ShipmentGroupsScreen> {
     );
   }
 
-  Future<void> _logout(BuildContext context, {bool sessionExpired = false}) async {
-    await AuthService.instance.logout();
-    if (!context.mounted) return;
-    if (sessionExpired) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Session expired — please sign in again',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor: context.read<LeapThemeProvider>().theme.warning,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(14),
-        duration: const Duration(seconds: 3),
-      ));
-      await Future.delayed(const Duration(seconds: 1));
-      if (!context.mounted) return;
+  Future<void> _logout() async {
+    final t = context.read<LeapThemeProvider>().theme;
+    HapticFeedback.lightImpact();
+    final confirm = await showModalBottomSheet<bool>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sign Out',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: t.text)),
+            const SizedBox(height: 6),
+            Text('Are you sure you want to sign out?',
+                style: TextStyle(fontSize: 13, color: t.textMuted)),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: t.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Cancel',
+                        style: TextStyle(color: t.textMuted)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: t.danger,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Sign Out',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirm == true) {
+      await AuthService.instance.logout();
+      if (mounted) {
+        Navigator.of(context).pushReplacement(PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const LoginScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ));
+      }
     }
-    Navigator.of(context).pushReplacement(PageRouteBuilder(
-      pageBuilder: (_, __, ___) => const LoginScreen(),
-      transitionsBuilder: (_, animation, __, child) =>
-          FadeTransition(opacity: animation, child: child),
-      transitionDuration: const Duration(milliseconds: 400),
-    ));
   }
 }
 
@@ -351,8 +374,7 @@ class _GroupList extends StatelessWidget {
 
     if (provider.state == LoadState.loading) {
       return Center(
-        child: CircularProgressIndicator(
-            color: t.primary, strokeWidth: 2.5),
+        child: CircularProgressIndicator(color: t.primary, strokeWidth: 2.5),
       );
     }
 
@@ -368,15 +390,14 @@ class _GroupList extends StatelessWidget {
               Text(provider.error,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: t.primary)),
+                      fontWeight: FontWeight.w600, color: t.primary)),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: provider.load,
                 style: ElevatedButton.styleFrom(
                     backgroundColor: t.primary),
-                child: const Text('Retry',
-                    style: TextStyle(color: Colors.white)),
+                child: Text(AppLocalizations.of(context)!.retry,
+                    style: const TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -384,11 +405,7 @@ class _GroupList extends StatelessWidget {
       );
     }
 
-    final groups     = provider.groups;
-    final otherCount = provider.isInbound
-        ? provider.outboundCount
-        : provider.inboundCount;
-    final otherTeam  = provider.isInbound ? 'Outbound' : 'Inbound';
+    final groups = provider.groups;
 
     if (groups.isEmpty) {
       return Center(
@@ -418,32 +435,11 @@ class _GroupList extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                otherCount > 0
-                    ? 'There are $otherCount $otherTeam group${otherCount > 1 ? "s" : ""} available.\nTap ⇄ to switch.'
-                    : 'No shipment groups found.\nPull down to refresh.',
+                'No shipment groups found.\nPull down to refresh.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13, color: t.textMuted, height: 1.5),
               ),
-              if (otherCount > 0) ...[
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: provider.switchTeam,
-                  icon: const Text('⇄', style: TextStyle(fontSize: 14)),
-                  // FIX: Was 'Switch to \$otherTeam' (escaped backslash) — literal text displayed.
-                  // Corrected to proper string interpolation.
-                  label: Text('Switch to $otherTeam'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: t.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -454,23 +450,19 @@ class _GroupList extends StatelessWidget {
       color: t.primary,
       onRefresh: provider.load,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(10, 4, 10, 16),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 16),
         itemCount: groups.length,
-        itemBuilder: (_, i) => _GroupCard(
-          group: groups[i],
-          isInbound: provider.isInbound,
-        ),
+        itemBuilder: (_, i) => _GroupCard(group: groups[i]),
       ),
     );
   }
 }
 
-// ─── Group Card with ripple + scale animation ─────────────────────────────────
+// ─── Group Card ────────────────────────────────────────────────────────────────
 
 class _GroupCard extends StatefulWidget {
-  const _GroupCard({required this.group, required this.isInbound});
+  const _GroupCard({required this.group});
   final ShipmentGroup group;
-  final bool isInbound;
 
   @override
   State<_GroupCard> createState() => _GroupCardState();
@@ -479,7 +471,7 @@ class _GroupCard extends StatefulWidget {
 class _GroupCardState extends State<_GroupCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _scaleCtrl;
-  late Animation<double> _scaleAnim;
+  late Animation<double>   _scaleAnim;
 
   @override
   void initState() {
@@ -506,7 +498,7 @@ class _GroupCardState extends State<_GroupCard>
   Widget build(BuildContext context) {
     final t    = context.watch<LeapThemeProvider>().theme;
     final g    = widget.group;
-    final isIB = widget.isInbound;
+    final isIB = g.isInbound;
 
     return ScaleTransition(
       scale: _scaleAnim,
@@ -518,13 +510,14 @@ class _GroupCardState extends State<_GroupCard>
           Navigator.push(
             context,
             PageRouteBuilder(
-              pageBuilder: (_, __, ___) => ShipmentGroupDetailScreen(group: g),
+              pageBuilder: (_, __, ___) =>
+                  ShipmentGroupDetailScreen(group: g),
               transitionsBuilder: (_, animation, __, child) {
                 final slide = Tween<Offset>(
                   begin: const Offset(0, 0.06),
                   end: Offset.zero,
                 ).animate(CurvedAnimation(
-                  parent: animation, curve: Curves.easeOutCubic));
+                    parent: animation, curve: Curves.easeOutCubic));
                 return FadeTransition(
                   opacity: animation,
                   child: SlideTransition(position: slide, child: child),
@@ -538,15 +531,14 @@ class _GroupCardState extends State<_GroupCard>
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: t.surface2,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: t.border, width: 1.5),
             boxShadow: [
               BoxShadow(
-                // FIX: withOpacity() deprecated. Use withValues(alpha:).
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -554,13 +546,13 @@ class _GroupCardState extends State<_GroupCard>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Left bar
+                // Left colour bar
                 Container(
                   width: 4,
                   decoration: BoxDecoration(
                     color: isIB
                         ? AppConstants.inboundGreen
-                        : t.primary,
+                        : AppConstants.outboundBlue,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(14),
                       bottomLeft: Radius.circular(14),
@@ -573,7 +565,7 @@ class _GroupCardState extends State<_GroupCard>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Top row
+                        // Top row: icon + ID + direction tag
                         Row(
                           children: [
                             Container(
@@ -593,28 +585,14 @@ class _GroupCardState extends State<_GroupCard>
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    g.shipGroupXid,
-                                    style: TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w900,
-                                      color: t.primary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${g.displaySource} → ${g.displayDest}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: t.textMuted,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                              child: Text(
+                                g.shipGroupXid,
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  color: t.primary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -628,31 +606,38 @@ class _GroupCardState extends State<_GroupCard>
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Text(
-                                g.shipGroupTypeGid,
+                                g.attribute5,
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
                                   color: isIB
                                       ? AppConstants.inboundGreen
-                                      : t.primary,
+                                      : AppConstants.outboundBlue,
                                 ),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 10),
-                        // Meta row with improved shipment count
+                        // Middle row: appt start | appt end | ship units
                         Row(
                           children: [
-                            _MetaItem(label: 'START', value: _fmtDate(g.startTime)),
-                            _MetaItem(label: 'END',   value: _fmtDate(g.endTime)),
-                            // Shipments — big number
+                            _MetaItem(
+                              label: 'APPT START',
+                              value: _fmtEet(g.apptStartEet),
+                            ),
+                            _MetaItem(
+                              label: 'APPT END',
+                              value: _fmtEet(g.apptEndEet),
+                            ),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${g.numberOfShipments}',
+                                    g.attributeNumber1.isNotEmpty
+                                        ? g.attributeNumber1
+                                        : '—',
                                     style: TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.w900,
@@ -661,7 +646,7 @@ class _GroupCardState extends State<_GroupCard>
                                     ),
                                   ),
                                   Text(
-                                    'Shipments',
+                                    'Ship units',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w500,
@@ -674,20 +659,52 @@ class _GroupCardState extends State<_GroupCard>
                           ],
                         ),
                         const SizedBox(height: 8),
-                        // Bottom row
+                        // Bottom row: weight | truck plate | door | chevron
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              '⚖️ ${g.totalWeight.isNotEmpty ? g.totalWeight : 'N/A'}',
+                              g.totalWeight.isNotEmpty
+                                  ? g.totalWeight
+                                  : 'N/A',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: t.textMuted,
                               ),
                             ),
+                            if (g.truckPlate.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE6F1FB),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  g.truckPlate,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppConstants.outboundBlue,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (g.attribute2.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                g.attribute2,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: t.textMuted,
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
                             Icon(Icons.arrow_forward_ios_rounded,
-                                size: 13, color: t.textMuted),
+                                size: 13, color: t.textMuted.withValues(alpha: 0.4)),
                           ],
                         ),
                       ],
@@ -702,10 +719,9 @@ class _GroupCardState extends State<_GroupCard>
     );
   }
 
-  String _fmtDate(String s) {
-    if (s.isEmpty) return 'N/A';
-    try { return DateFormat('dd MMM').format(DateTime.parse(s)); }
-    catch (_) { return s; }
+  String _fmtEet(DateTime? dt) {
+    if (dt == null) return 'N/A';
+    return DateFormat('dd MMM • HH:mm').format(dt);
   }
 }
 
@@ -729,236 +745,13 @@ class _MetaItem extends StatelessWidget {
                   letterSpacing: 0.4)),
           const SizedBox(height: 2),
           Text(value,
-              style: const TextStyle(
-                  fontSize: 12,
+              style: TextStyle(
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF2D3436)),
+                  color: t.text),
               overflow: TextOverflow.ellipsis),
         ],
       ),
-    );
-  }
-}
-
-
-// ─── Settings sheet — theme + language in one place ───────────────────────────
-
-class _SettingsSheet extends StatefulWidget {
-  final AppThemeData theme;
-  const _SettingsSheet({required this.theme});
-
-  @override
-  State<_SettingsSheet> createState() => _SettingsSheetState();
-}
-
-class _SettingsSheetState extends State<_SettingsSheet> {
-  int _tab = 0; // 0 = theme, 1 = language
-
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider  = context.watch<LeapThemeProvider>();
-    final localeProvider = context.watch<LocaleProvider>();
-    final t              = themeProvider.theme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface2,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.fromLTRB(
-          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-
-        Center(child: Container(
-          width: 36, height: 4,
-          decoration: BoxDecoration(
-              color: t.border, borderRadius: BorderRadius.circular(2)),
-        )),
-        const SizedBox(height: 16),
-
-        // Tab toggle
-        Row(children: [
-          Expanded(child: GestureDetector(
-            onTap: () => setState(() => _tab = 0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: _tab == 0 ? t.primary : t.surface1,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: _tab == 0 ? t.primary : t.border),
-              ),
-              child: Text('Theme', textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 13, fontWeight: FontWeight.w700,
-                  color: _tab == 0 ? Colors.white : t.textMuted)),
-            ),
-          )),
-          const SizedBox(width: 8),
-          Expanded(child: GestureDetector(
-            onTap: () => setState(() => _tab = 1),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: _tab == 1 ? t.primary : t.surface1,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: _tab == 1 ? t.primary : t.border),
-              ),
-              child: Text('Language', textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 13, fontWeight: FontWeight.w700,
-                  color: _tab == 1 ? Colors.white : t.textMuted)),
-            ),
-          )),
-        ]),
-        const SizedBox(height: 16),
-
-        // Theme grid
-        if (_tab == 0)
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10, mainAxisSpacing: 10,
-              childAspectRatio: 2.6,
-            ),
-            itemCount: LeapThemes.all.length,
-            itemBuilder: (_, i) {
-              final theme    = LeapThemes.all[i];
-              final selected = themeProvider.theme.id == theme.id;
-              return GestureDetector(
-                onTap: () => themeProvider.setTheme(theme),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? theme.navColor.withValues(alpha: 0.08)
-                        : t.surface1,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: selected ? theme.primary : t.border,
-                      width: selected ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(children: [
-                    Row(mainAxisSize: MainAxisSize.min,
-                      children: theme.swatchColors.map((c) => Container(
-                        width: 13, height: 13,
-                        margin: const EdgeInsets.only(right: 3),
-                        decoration: BoxDecoration(
-                            color: c,
-                            borderRadius: BorderRadius.circular(3)),
-                      )).toList(),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(theme.label,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 11, fontWeight: FontWeight.w700,
-                            color: selected ? theme.primary : t.text),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                        Text(theme.description,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 9, color: t.textMuted,
-                            fontWeight: FontWeight.w500),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      ],
-                    )),
-                    if (selected)
-                      Container(
-                        width: 18, height: 18,
-                        decoration: BoxDecoration(
-                            color: theme.primary, shape: BoxShape.circle),
-                        child: const Icon(Icons.check,
-                            color: Colors.white, size: 12),
-                      ),
-                  ]),
-                ),
-              );
-            },
-          ),
-
-        // Language grid
-        if (_tab == 1)
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10, mainAxisSpacing: 10,
-              childAspectRatio: 3.2,
-            ),
-            itemCount: LocaleProvider.languages.length,
-            itemBuilder: (_, i) {
-              final lang     = LocaleProvider.languages[i];
-              final code     = lang['code']!;
-              final selected = localeProvider.locale.languageCode == code;
-              return GestureDetector(
-                onTap: () => localeProvider.setLocale(Locale(code)),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? t.primary.withValues(alpha: 0.08)
-                        : t.surface1,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selected ? t.primary : t.border,
-                      width: selected ? 2 : 1.5,
-                    ),
-                  ),
-                  child: Row(children: [
-                    Text(lang['flag']!,
-                        style: const TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(lang['name']!,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 12, fontWeight: FontWeight.w600,
-                        color: selected ? t.primary : t.text),
-                      overflow: TextOverflow.ellipsis)),
-                    if (selected)
-                      Icon(Icons.check_circle_rounded,
-                          color: t.primary, size: 16),
-                  ]),
-                ),
-              );
-            },
-          ),
-
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity, height: 48,
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: t.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(32)),
-            ),
-            child: const Text('Done',
-              style: TextStyle(fontFamily: 'PlusJakartaSans',
-                  fontSize: 16, fontWeight: FontWeight.w800)),
-          ),
-        ),
-      ]),
     );
   }
 }

@@ -5,14 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart' as intl;
 
-import 'app_localizations_ar.dart';
-import 'app_localizations_de.dart';
 import 'app_localizations_en.dart';
-import 'app_localizations_es.dart';
-import 'app_localizations_fr.dart';
-import 'app_localizations_hi.dart';
-import 'app_localizations_pl.dart';
-import 'app_localizations_pt.dart';
 
 // ignore_for_file: type=lint
 
@@ -97,14 +90,7 @@ abstract class AppLocalizations {
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
-    Locale('ar'),
-    Locale('de'),
     Locale('en'),
-    Locale('es'),
-    Locale('fr'),
-    Locale('hi'),
-    Locale('pl'),
-    Locale('pt')
   ];
 
   /// No description provided for @appTitle.
@@ -395,6 +381,8 @@ abstract class AppLocalizations {
   /// **'Switch to {team}'**
   String switchTeam(String team);
 
+  String get switchView;
+
   /// No description provided for @plannedPickup.
   ///
   /// In en, this message translates to:
@@ -532,6 +520,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Language'**
   String get language;
+
+  /// No description provided for @searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search shipment groups…'**
+  String get searchHint;
+
+  /// No description provided for @noInboundGroups.
+  ///
+  /// In en, this message translates to:
+  /// **'No inbound groups'**
+  String get noInboundGroups;
+
+  /// No description provided for @noOutboundGroups.
+  ///
+  /// In en, this message translates to:
+  /// **'No outbound groups'**
+  String get noOutboundGroups;
+
+  /// No description provided for @noGroupsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No groups found'**
+  String get noGroupsFound;
+
+  /// No description provided for @apptStart.
+  ///
+  /// In en, this message translates to:
+  /// **'APPT START'**
+  String get apptStart;
+
+  /// No description provided for @apptEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'APPT END'**
+  String get apptEnd;
+
+  /// No description provided for @shipUnits.
+  ///
+  /// In en, this message translates to:
+  /// **'SHIP UNITS'**
+  String get shipUnits;
+
+  /// No description provided for @truckPlate.
+  ///
+  /// In en, this message translates to:
+  /// **'TRUCK PLATE'**
+  String get truckPlate;
+
+  /// No description provided for @dockDoor.
+  ///
+  /// In en, this message translates to:
+  /// **'DOCK DOOR'**
+  String get dockDoor;
+
+  /// No description provided for @from.
+  ///
+  /// In en, this message translates to:
+  /// **'FROM'**
+  String get from;
+
+  /// No description provided for @to.
+  ///
+  /// In en, this message translates to:
+  /// **'TO'**
+  String get to;
+
+  /// No description provided for @fetchingShipments.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetching shipments…'**
+  String get fetchingShipments;
+
+  /// No description provided for @noShipmentsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No shipments found'**
+  String get noShipmentsFound;
+
+  /// No description provided for @uploadSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Document uploaded successfully'**
+  String get uploadSuccess;
+
+  /// No description provided for @uploadFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to upload document'**
+  String get uploadFailure;
+
+  /// No description provided for @uploadCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload cancelled'**
+  String get uploadCancelled;
+
+  /// No description provided for @removeSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Document removed'**
+  String get removeSuccess;
+
+  /// No description provided for @removeFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to remove document'**
+  String get removeFailure;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -554,14 +650,7 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
 
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'ar': return AppLocalizationsAr();
-    case 'de': return AppLocalizationsDe();
     case 'en': return AppLocalizationsEn();
-    case 'es': return AppLocalizationsEs();
-    case 'fr': return AppLocalizationsFr();
-    case 'hi': return AppLocalizationsHi();
-    case 'pl': return AppLocalizationsPl();
-    case 'pt': return AppLocalizationsPt();
   }
 
   throw FlutterError(

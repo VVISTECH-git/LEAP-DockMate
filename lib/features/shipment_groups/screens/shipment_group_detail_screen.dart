@@ -1,14 +1,19 @@
 // ignore_for_file: prefer_const_constructors
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/leap_theme.dart';
 import '../models/shipment_group_model.dart';
 import '../../documents/services/document_service.dart';
+import '../../shipments/screens/shipments_screen.dart';
+import '../services/shipment_group_service.dart';
+import '../../../l10n/app_localizations.dart';
 
 class ShipmentGroupDetailScreen extends StatefulWidget {
   const ShipmentGroupDetailScreen({super.key, required this.group});
@@ -23,15 +28,52 @@ class _ShipmentGroupDetailScreenState
     extends State<ShipmentGroupDetailScreen> {
   final _picker = ImagePicker();
   final List<DocumentFile> _docs = [];
-
-  // FIX: Track per-file upload result so each thumbnail can show ✅/❌ after submission.
-  List<bool?> _docResults = []; // null = not yet uploaded, true = success, false = failed
+  List<bool?> _docResults = [];
 
   String _selectedDocType = AppConstants.docTypes.first;
   bool   _isSubmitting    = false;
   double _uploadProgress  = 0;
-  int    _uploadCurrent   = 0;  // FIX: Track which file number is currently uploading
+  int    _uploadCurrent   = 0;
   int    _uploadTotal     = 0;
+
+  // Resolved group with location names
+  late ShipmentGroup _group;
+  bool _loadingLocations = true;
+  bool _locationError    = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _group = widget.group;
+    _resolveLocationNames();
+  }
+
+  @override
+  void dispose() {
+    _deleteStagedFiles(_docs);
+    super.dispose();
+  }
+
+  static void _deleteStagedFiles(List<DocumentFile> docs) {
+    for (final doc in docs) {
+      try { if (doc.file.existsSync()) doc.file.deleteSync(); } catch (_) {}
+    }
+  }
+
+  Future<void> _resolveLocationNames() async {
+    try {
+      final resolved = await ShipmentGroupService.instance.fetchById(
+        widget.group.shipGroupGid,
+      );
+      if (mounted) setState(() { _group = resolved; _loadingLocations = false; });
+    } catch (_) {
+      if (mounted) {
+        setState(() { _loadingLocations = false; _locationError = true; });
+      }
+    }
+  }
+
+  // ─── Image picking ────────────────────────────────────────────────────────
 
   Future<void> _openDocSheet() async {
     if (_docs.length >= AppConstants.maxDocuments) {
@@ -45,20 +87,22 @@ class _ShipmentGroupDetailScreenState
       builder: (_) => _DocBottomSheet(
         selectedType: _selectedDocType,
         onTypeChanged: (t) => setState(() => _selectedDocType = t),
-        onCamera: () async {
-          Navigator.pop(context);
-          await _pickCamera();
-        },
-        onGallery: () async {
-          Navigator.pop(context);
-          await _pickMultiGallery();
-        },
+        onCamera: () async { Navigator.pop(context); await _pickCamera(); },
+        onGallery: () async { Navigator.pop(context); await _pickMultiGallery(); },
       ),
     );
   }
 
-  // Camera — single shot, called again via + button for burst
   Future<void> _pickCamera() async {
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (status.isPermanentlyDenied && mounted) {
+        _showPermissionDeniedDialog('Camera');
+      } else {
+        _showSnack('Camera access denied', false);
+      }
+      return;
+    }
     try {
       final xfile = await _picker.pickImage(
         source:       ImageSource.camera,
@@ -69,13 +113,20 @@ class _ShipmentGroupDetailScreenState
       if (xfile == null) return;
       await _addFile(xfile.path);
     } catch (e) {
-      debugPrint('Camera error: $e');
       _showSnack('Error accessing camera', false);
     }
   }
 
-  // Gallery — multi-select up to remaining slots
   Future<void> _pickMultiGallery() async {
+    final status = await Permission.photos.request();
+    if (!status.isGranted) {
+      if (status.isPermanentlyDenied && mounted) {
+        _showPermissionDeniedDialog('Photo Library');
+      } else {
+        _showSnack('Photo library access denied', false);
+      }
+      return;
+    }
     try {
       final remaining = AppConstants.maxDocuments - _docs.length;
       if (remaining <= 0) {
@@ -88,38 +139,43 @@ class _ShipmentGroupDetailScreenState
         maxHeight:    AppConstants.imageMaxHeight.toDouble(),
       );
       if (xfiles.isEmpty) return;
-
       final toAdd = xfiles.take(remaining).toList();
       if (xfiles.length > remaining) {
         final plural = remaining > 1 ? 's' : '';
-        _showSnack(
-          'Only $remaining more image$plural added (max ${AppConstants.maxDocuments})',
-          false,
-        );
+        _showSnack('Only $remaining more image$plural added (max ${AppConstants.maxDocuments})', false);
       }
-      for (final xfile in toAdd) {
-        await _addFile(xfile.path);
-      }
+      for (final xfile in toAdd) { await _addFile(xfile.path); }
     } catch (e) {
-      debugPrint('Gallery error: $e');
       _showSnack('Error picking images', false);
     }
   }
 
-  // Shared helper — rename and add to _docs
+  static const int _maxFileSizeBytes = 25 * 1024 * 1024; // 25 MB
+
   Future<void> _addFile(String path) async {
     try {
-      final file    = File(path);
+      final file = File(path);
+      final size = await file.length();
+      if (size > _maxFileSizeBytes) {
+        _showSnack(
+          'File too large (${(size / (1024 * 1024)).toStringAsFixed(1)} MB). Max 25 MB.',
+          false,
+        );
+        return;
+      }
       final ts      = DateFormat('yyyyMMddHHmmss').format(DateTime.now());
       final ext     = path.split('.').last.toLowerCase();
-      final renamed = await file.copy(
-          '${file.parent.path}/${ts}_${_docs.length}.$ext');
+      final renamed = await file.copy('${file.parent.path}/${ts}_${_docs.length}.$ext');
       setState(() {
         _docs.add(DocumentFile(file: renamed, docType: _selectedDocType));
         _docResults = List<bool?>.filled(_docs.length, null);
       });
+    } on FileSystemException catch (e) {
+      if (kDebugMode) debugPrint('File add error: $e');
+      _showSnack('Could not add file — check available storage.', false);
     } catch (e) {
-      debugPrint('File add error: $e');
+      if (kDebugMode) debugPrint('File add error: $e');
+      _showSnack('Could not add file.', false);
     }
   }
 
@@ -128,20 +184,21 @@ class _ShipmentGroupDetailScreenState
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Remove Document',
+        title: Text(AppLocalizations.of(context)!.removeDocument,
             style: TextStyle(
                 fontWeight: FontWeight.w800,
                 color: context.read<LeapThemeProvider>().theme.primary,
                 fontSize: 16)),
-        content: Text(
-          'Remove "${_docs[index].docType}" document?',
-          style: TextStyle(fontSize: 14, color: context.read<LeapThemeProvider>().theme.textMuted),
-        ),
+        content: Text('${AppLocalizations.of(context)!.removeDocument}: "${_docs[index].docType}"',
+            style: TextStyle(
+                fontSize: 14,
+                color: context.read<LeapThemeProvider>().theme.textMuted)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel',
-                style: TextStyle(color: context.read<LeapThemeProvider>().theme.textMuted)),
+            child: Text(AppLocalizations.of(context)!.cancel,
+                style: TextStyle(
+                    color: context.read<LeapThemeProvider>().theme.textMuted)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -152,7 +209,7 @@ class _ShipmentGroupDetailScreenState
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Remove'),
+            child: Text(AppLocalizations.of(context)!.remove),
           ),
         ],
       ),
@@ -165,6 +222,8 @@ class _ShipmentGroupDetailScreenState
     }
   }
 
+  // ─── Submit ───────────────────────────────────────────────────────────────
+
   Future<void> _submit() async {
     if (_docs.isEmpty) { await _openDocSheet(); return; }
 
@@ -176,50 +235,83 @@ class _ShipmentGroupDetailScreenState
       _docResults     = List<bool?>.filled(_docs.length, null);
     });
 
-    // onProgress only updates the progress bar and counter.
-    // Per-file results (fileResults) cannot be read here because `result`
-    // hasn't been assigned yet — they are applied after the await returns.
-    final result = await DocumentService.instance.uploadDocuments(
-      shipGroupGid: widget.group.shipGroupGid,
-      files: _docs,
-      onProgress: (done, total) => setState(() {
-        _uploadProgress = total > 0 ? done / total : 0;
-        _uploadCurrent  = done;
-        _uploadTotal    = total;
-      }),
-    );
+    try {
+      final result = await DocumentService.instance.uploadDocuments(
+        shipGroupGid: widget.group.shipGroupGid,
+        files: _docs,
+        onProgress: (done, total) {
+          if (!mounted) return;
+          setState(() {
+            _uploadProgress = total > 0 ? done / total : 0;
+            _uploadCurrent  = done;
+            _uploadTotal    = total;
+          });
+        },
+      );
 
-    // Now apply per-file ✅/❌ results and stop the spinner.
-    setState(() {
-      _isSubmitting = false;
-      for (int i = 0; i < result.fileResults.length; i++) {
-        _docResults[i] = result.fileResults[i];
-      }
-    });
-
-    final count = result.successCount;
-    final word  = count == 1 ? 'document' : 'documents';
-
-    if (result.allSuccess) {
-      _showSnack('✅ $count $word uploaded successfully', true);
-      // Small delay so user can see the ✅ thumbnails before they disappear.
-      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
       setState(() {
-        _docs.clear();
-        _docResults = [];
+        _isSubmitting = false;
+        for (int i = 0; i < result.fileResults.length; i++) {
+          _docResults[i] = result.fileResults[i];
+        }
       });
-    } else if (result.partialSuccess) {
-      _showSnack('⚠️ ${result.successCount} of ${result.totalCount} $word uploaded', false);
-    } else {
+
+      final count = result.successCount;
+      final word  = count == 1 ? 'document' : 'documents';
+
+      if (result.allSuccess) {
+        _showSnack('✅ $count $word uploaded successfully', true);
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) {
+          _deleteStagedFiles(_docs);
+          setState(() { _docs.clear(); _docResults = []; });
+        }
+      } else if (result.partialSuccess) {
+        _showSnack('⚠️ ${result.successCount} of ${result.totalCount} $word uploaded', false);
+      } else {
+        _showSnack('❌ Upload failed — check your connection', false);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isSubmitting = false; _uploadProgress = 0; });
       _showSnack('❌ Upload failed — check your connection', false);
     }
+  }
+
+  void _showPermissionDeniedDialog(String permissionName) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('$permissionName Access Required',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        content: Text(
+          '$permissionName permission was denied. '
+          'To enable it, open Settings → Apps → DockMate → Permissions.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not Now'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnack(String msg, bool success) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: const TextStyle(fontWeight: FontWeight.w600)),
+      content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
       backgroundColor:
           success ? AppConstants.inboundGreen : AppConstants.errorRed,
       behavior: SnackBarBehavior.floating,
@@ -228,15 +320,18 @@ class _ShipmentGroupDetailScreenState
     ));
   }
 
-  String _fmt(String s) {
-    if (s.isEmpty) return 'N/A';
-    try { return DateFormat('dd MMM yyyy • HH:mm').format(DateTime.parse(s)); }
-    catch (_) { return s; }
+  // ─── Formatting ───────────────────────────────────────────────────────────
+
+  String _fmtEet(DateTime? dt) {
+    if (dt == null) return 'N/A';
+    return DateFormat('dd MMM yyyy • HH:mm').format(dt);
   }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final g    = widget.group;
+    final g    = _group;
     final isIB = g.isInbound;
 
     return Scaffold(
@@ -248,7 +343,7 @@ class _ShipmentGroupDetailScreenState
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
         ),
         title: Text(g.shipGroupXid,
             style: const TextStyle(
@@ -258,7 +353,8 @@ class _ShipmentGroupDetailScreenState
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 14),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: isIB
                   ? const Color(0xFFE8F7F1)
@@ -266,7 +362,7 @@ class _ShipmentGroupDetailScreenState
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              g.shipGroupTypeGid,
+              g.attribute5,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -278,13 +374,46 @@ class _ShipmentGroupDetailScreenState
           ),
         ],
       ),
-      body: Stack(
+      body: _loadingLocations
+          ? Center(
+              child: CircularProgressIndicator(
+                color: context.watch<LeapThemeProvider>().theme.primary,
+                strokeWidth: 2.5,
+              ),
+            )
+          : Stack(
         children: [
           SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 110),
             child: Column(
               children: [
-                _InfoCard(group: g, fmtDT: _fmt),
+                _InfoCard(group: g, fmtEet: _fmtEet),
+                if (_locationError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFF97316)),
+                      ),
+                      child: Row(children: const [
+                        Icon(Icons.warning_amber_rounded,
+                            color: Color(0xFFF97316), size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Could not load location names — showing location IDs.',
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF7A4000)),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 _DocumentsCard(
                   docs: _docs,
@@ -296,24 +425,17 @@ class _ShipmentGroupDetailScreenState
               ],
             ),
           ),
-
-          // FIX: AbsorbPointer blocks all taps on the scrollable content while
-          // uploading — prevents removing/previewing docs mid-upload.
           if (_isSubmitting)
             Positioned.fill(
               child: AbsorbPointer(
                 absorbing: true,
                 child: Container(
-                  color: Colors.black.withValues(alpha: 0.08),
-                ),
+                    color: Colors.black.withValues(alpha: 0.08)),
               ),
             ),
-
-          // Sticky submit button — fixed 54px height always, always blue.
-          // During upload: button becomes a progress container (no grey disabled state).
           Positioned(
             left: 14, right: 14,
-            bottom: MediaQuery.of(context).padding.bottom + 14,
+            bottom: MediaQuery.of(context).viewPadding.bottom + 14,
             child: _isSubmitting
                 ? _UploadProgressButton(
                     progress: _uploadProgress,
@@ -326,20 +448,27 @@ class _ShipmentGroupDetailScreenState
                     child: ElevatedButton(
                       onPressed: _submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: context.watch<LeapThemeProvider>().theme.primary,
+                        backgroundColor:
+                            context.watch<LeapThemeProvider>().theme.primary,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: context.watch<LeapThemeProvider>().theme.primary.withValues(alpha: 0.4),
+                        shadowColor: context
+                            .watch<LeapThemeProvider>()
+                            .theme
+                            .primary
+                            .withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: Text(
-                        _docs.isEmpty
-                            ? '📷  Add Documents'
-                            : '📤  Submit ${_docs.length} Document${_docs.length > 1 ? "s" : ""} to OTM',
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _docs.isEmpty
+                              ? '📷  Add Documents'
+                              : '📤  Submit ${_docs.length} Document${_docs.length > 1 ? "s" : ""} to OTM',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
                       ),
                     ),
                   ),
@@ -353,21 +482,20 @@ class _ShipmentGroupDetailScreenState
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               decoration: BoxDecoration(
                 color: context.watch<LeapThemeProvider>().theme.navColor,
-                borderRadius: BorderRadius.only(
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
                 ),
               ),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   const Icon(Icons.image, color: Colors.white),
@@ -398,84 +526,21 @@ class _ShipmentGroupDetailScreenState
       ),
     );
   }
-}
 
-// ─── Upload Progress Button ──────────────────────────────────────────────────
-// Replaces the submit button during upload. Same 54px height, always blue,
-// progress fill animates from left. No grey disabled state ever shown.
-
-class _UploadProgressButton extends StatelessWidget {
-  const _UploadProgressButton({
-    required this.progress,
-    required this.current,
-    required this.total,
-  });
-  final double progress;
-  final int current;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.watch<LeapThemeProvider>().theme;
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Blue base
-            Container(color: t.primary),
-            // Green progress fill sliding in from left
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress.clamp(0.0, 1.0),
-              child: Container(
-                color: AppConstants.inboundGreen,
-              ),
-            ),
-            // Spinner + text centred on top
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 16, height: 16,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    current < total
-                        ? 'Uploading $current of $total…'
-                        : 'Finishing up…',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ─── Info Card ────────────────────────────────────────────────────────────────
 
 class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.group, required this.fmtDT});
-  final ShipmentGroup group;
-  final String Function(String) fmtDT;
+  const _InfoCard({required this.group, required this.fmtEet});
+  final ShipmentGroup          group;
+  final String Function(DateTime?) fmtEet;
 
   @override
   Widget build(BuildContext context) {
     final t = context.watch<LeapThemeProvider>().theme;
+    final g = group;
+
     return Container(
       decoration: BoxDecoration(
         color: t.surface2,
@@ -491,6 +556,7 @@ class _InfoCard extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             child: Row(
@@ -502,22 +568,21 @@ class _InfoCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
-                    child: Icon(Icons.tag_rounded,
-                        color: t.primary, size: 20),
+                    child: Icon(Icons.tag_rounded, color: t.primary, size: 20),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('GROUP ID',
+                    Text(AppLocalizations.of(context)!.groupId,
                         style: TextStyle(
                             fontSize: 10,
                             color: t.textMuted,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 1.0)),
                     const SizedBox(height: 2),
-                    Text(group.shipGroupXid,
+                    Text(g.shipGroupXid,
                         style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
@@ -529,37 +594,77 @@ class _InfoCard extends StatelessWidget {
             ),
           ),
           Divider(height: 1, color: t.border),
-          _RouteRow(from: group.displaySource, to: group.displayDest),
-          Divider(height: 1, color: t.border),
+
+          if (g.displaySource.isNotEmpty || g.displayDest.isNotEmpty)
+            _RouteRow(from: g.displaySource, to: g.displayDest),
+
           _NormalRow(
-            icon: Icons.schedule_outlined,
-            label: 'Planned Pickup',
-            value: fmtDT(group.startTime),
+            icon: Icons.calendar_today_outlined,
+            label: AppLocalizations.of(context)!.plannedPickup,
+            value: fmtEet(g.apptStartEet),
           ),
           _NormalRow(
-            icon: Icons.flag_outlined,
-            label: 'Planned Delivery',
-            value: fmtDT(group.endTime),
+            icon: Icons.calendar_today_outlined,
+            label: AppLocalizations.of(context)!.plannedDelivery,
+            value: fmtEet(g.apptEndEet),
           ),
-          _NormalRow(
-            icon: Icons.inventory_2_outlined,
-            label: 'Shipments',
-            value: '${group.numberOfShipments}',
-            valueStyle: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: t.primary,
+          if (g.truckPlate.isNotEmpty)
+            _NormalRow(
+              icon: Icons.local_shipping_outlined,
+              label: 'Truck plate',
+              value: g.truckPlate,
+              valueColor: AppConstants.outboundBlue,
+            ),
+          if (g.attribute2.isNotEmpty)
+            _NormalRow(
+              icon: Icons.meeting_room_outlined,
+              label: 'Dock door',
+              value: g.attribute2,
+            ),
+          if (g.attributeNumber1.isNotEmpty)
+            _NormalRow(
+              icon: Icons.inventory_2_outlined,
+              label: 'Ship units',
+              value: g.attributeNumber1,
+              valueColor: t.primary,
+              valueFontSize: 16,
+            ),
+
+          // Tappable shipments row
+          _TappableRow(
+            icon: Icons.directions_boat_outlined,
+            label: AppLocalizations.of(context)!.shipments,
+            value: '${g.numberOfShipments}',
+            onTap: () => Navigator.push(
+              context,
+              PageRouteBuilder(
+                pageBuilder: (_, __, ___) => ShipmentsScreen(
+                  shipGroupGid:    g.shipGroupGid,
+                  shipGroupXid:    g.shipGroupXid,
+                  expectedCount:   g.numberOfShipments,
+                ),
+                transitionsBuilder: (_, animation, __, child) {
+                  final slide = Tween<Offset>(
+                    begin: const Offset(1.0, 0),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(
+                      parent: animation, curve: Curves.easeOutCubic));
+                  return SlideTransition(position: slide, child: child);
+                },
+                transitionDuration: const Duration(milliseconds: 300),
+              ),
             ),
           ),
+
           _NormalRow(
             icon: Icons.scale_outlined,
-            label: 'Weight',
-            value: group.totalWeight.isNotEmpty ? group.totalWeight : 'N/A',
+            label: AppLocalizations.of(context)!.weight,
+            value: g.totalWeight.isNotEmpty ? g.totalWeight : 'N/A',
           ),
           _NormalRow(
             icon: Icons.square_foot_outlined,
-            label: 'Volume',
-            value: group.totalVolume.isNotEmpty ? group.totalVolume : 'N/A',
+            label: AppLocalizations.of(context)!.volume,
+            value: g.totalVolume.isNotEmpty ? g.totalVolume : 'N/A',
             last: true,
           ),
         ],
@@ -567,6 +672,66 @@ class _InfoCard extends StatelessWidget {
     );
   }
 }
+
+// ─── Route Row Skeleton ───────────────────────────────────────────────────────
+
+class _RouteRowSkeleton extends StatefulWidget {
+  @override
+  State<_RouteRowSkeleton> createState() => _RouteRowSkeletonState();
+}
+
+class _RouteRowSkeletonState extends State<_RouteRowSkeleton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double>   _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.3, end: 0.7).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(child: _bar(120, _anim.value)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.arrow_forward_rounded,
+                  color: Colors.grey.withValues(alpha: 0.3), size: 18),
+            ),
+            Expanded(child: Align(alignment: Alignment.centerRight,
+                child: _bar(100, _anim.value))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bar(double width, double opacity) => Container(
+    width: width, height: 14,
+    decoration: BoxDecoration(
+      color: Colors.grey.withValues(alpha: opacity),
+      borderRadius: BorderRadius.circular(6),
+    ),
+  );
+}
+
+// ─── Route Row ────────────────────────────────────────────────────────────────
 
 class _RouteRow extends StatelessWidget {
   const _RouteRow({required this.from, required this.to});
@@ -593,7 +758,7 @@ class _RouteRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text('PICKUP',
+                  Text('FROM',
                       style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
@@ -603,7 +768,7 @@ class _RouteRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(from,
                     style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w800,
                         color: t.text)),
               ],
@@ -618,32 +783,29 @@ class _RouteRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('DELIVERY',
-                        style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: t.textMuted,
-                            letterSpacing: 0.8)),
-                    const SizedBox(width: 6),
-                    Container(
-                      width: 8, height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppConstants.errorRed,
-                        shape: BoxShape.circle,
-                      ),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  Text('TO',
+                      style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: t.textMuted,
+                          letterSpacing: 0.8)),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 8, height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppConstants.errorRed,
+                      shape: BoxShape.circle,
                     ),
-                  ],
-                ),
+                  ),
+                ]),
                 const SizedBox(height: 3),
                 Text(to,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(
-                        fontSize: 15,
+                    style: TextStyle(
+                        fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1A1A2E))),
+                        color: t.text)),
               ],
             ),
           ),
@@ -653,19 +815,23 @@ class _RouteRow extends StatelessWidget {
   }
 }
 
+// ─── Normal Row ───────────────────────────────────────────────────────────────
+
 class _NormalRow extends StatelessWidget {
   const _NormalRow({
     required this.icon,
     required this.label,
     required this.value,
-    this.valueStyle,
+    this.valueColor,
+    this.valueFontSize,
     this.last = false,
   });
-  final IconData   icon;
-  final String     label;
-  final String     value;
-  final TextStyle? valueStyle;
-  final bool       last;
+  final IconData icon;
+  final String   label;
+  final String   value;
+  final Color?   valueColor;
+  final double?  valueFontSize;
+  final bool     last;
 
   @override
   Widget build(BuildContext context) {
@@ -675,7 +841,9 @@ class _NormalRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: last
             ? null
-            : Border(bottom: BorderSide(color: t.border.withValues(alpha: 0.5))),
+            : Border(
+                bottom: BorderSide(
+                    color: t.border.withValues(alpha: 0.5))),
       ),
       child: Row(
         children: [
@@ -691,15 +859,124 @@ class _NormalRow extends StatelessWidget {
                         color: t.textMuted,
                         fontWeight: FontWeight.w500)),
                 Text(value,
-                    style: valueStyle ??
-                        TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: t.text)),
+                    style: TextStyle(
+                        fontSize: valueFontSize ?? 13,
+                        fontWeight: FontWeight.w700,
+                        color: valueColor ?? t.text)),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Tappable Row (Shipments) ─────────────────────────────────────────────────
+
+class _TappableRow extends StatelessWidget {
+  const _TappableRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+  final IconData   icon;
+  final String     label;
+  final String     value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: t.border.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: t.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: t.textMuted,
+                      fontWeight: FontWeight.w500)),
+            ),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppConstants.outboundBlue)),
+            const SizedBox(width: 6),
+            Icon(Icons.arrow_forward_ios_rounded,
+                size: 13, color: AppConstants.outboundBlue),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Upload Progress Button ───────────────────────────────────────────────────
+
+class _UploadProgressButton extends StatelessWidget {
+  const _UploadProgressButton({
+    required this.progress,
+    required this.current,
+    required this.total,
+  });
+  final double progress;
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.watch<LeapThemeProvider>().theme;
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: t.primary),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: progress.clamp(0.0, 1.0),
+              child: Container(color: AppConstants.inboundGreen),
+            ),
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    current < total
+                        ? 'Uploading $current of $total…'
+                        : 'Finishing up…',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -715,13 +992,11 @@ class _DocumentsCard extends StatelessWidget {
     this.onAdd,
     this.onRemove,
   });
-  final List<DocumentFile>    docs;
-  // FIX: docResults carries per-file upload status: null=pending, true=✅, false=❌
-  final List<bool?>            docResults;
-  final VoidCallback?          onAdd;
-  final void Function(int)?    onRemove;
-  final void Function(DocumentFile) onPreview;
-
+  final List<DocumentFile>           docs;
+  final List<bool?>                  docResults;
+  final VoidCallback?                onAdd;
+  final void Function(int)?          onRemove;
+  final void Function(DocumentFile)  onPreview;
   @override
   Widget build(BuildContext context) {
     final t = context.watch<LeapThemeProvider>().theme;
@@ -740,15 +1015,13 @@ class _DocumentsCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Row(
               children: [
-                Icon(Icons.attach_file_rounded,
-                    color: t.primary, size: 18),
+                Icon(Icons.attach_file_rounded, color: t.primary, size: 18),
                 const SizedBox(width: 8),
-                Text('Documents',
+                Text(AppLocalizations.of(context)!.documents,
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -763,7 +1036,6 @@ class _DocumentsCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-
           Padding(
             padding: const EdgeInsets.all(12),
             child: docs.isEmpty
@@ -788,12 +1060,12 @@ class _DocumentsCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Add Document',
+                                Text(AppLocalizations.of(context)!.addDocument,
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
                                         color: t.primary)),
-                                Text('Tap to upload POD, BOL, Invoice…',
+                                Text(AppLocalizations.of(context)!.uploadDocument,
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: t.textMuted)),
@@ -821,28 +1093,29 @@ class _DocumentsCard extends StatelessWidget {
                         itemCount: docs.length,
                         itemBuilder: (_, i) => _DocThumb(
                           doc: docs[i],
-                          // FIX: Pass per-file result so thumbnail shows ✅/❌/pending
-                          uploadResult: i < docResults.length ? docResults[i] : null,
+                          uploadResult:
+                              i < docResults.length ? docResults[i] : null,
                           onTap: () => onPreview(docs[i]),
-                          // FIX: onRemove is null during upload (AbsorbPointer also
-                          // blocks it, but this is a second layer of safety).
-                          onRemove: onRemove != null ? () => onRemove!(i) : null,
+                          onRemove: onRemove != null
+                              ? () => onRemove!(i)
+                              : null,
                         ),
                       ),
-                      if (docs.length < AppConstants.maxDocuments && onAdd != null) ...[
+                      if (docs.length < AppConstants.maxDocuments &&
+                          onAdd != null) ...[
                         const SizedBox(height: 10),
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: onAdd,
                             icon: const Icon(
-                                Icons.add_photo_alternate_outlined, size: 16),
+                                Icons.add_photo_alternate_outlined,
+                                size: 16),
                             label: Text(
-                                'Add Document (${docs.length}/${AppConstants.maxDocuments})'),
+                                '${AppLocalizations.of(context)!.addDocument} (${docs.length}/${AppConstants.maxDocuments})'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: t.primary,
-                              side: BorderSide(
-                                  color: t.primary),
+                              side: BorderSide(color: t.primary),
                               padding:
                                   const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
@@ -854,6 +1127,7 @@ class _DocumentsCard extends StatelessWidget {
                     ],
                   ),
           ),
+
         ],
       ),
     );
@@ -869,11 +1143,10 @@ class _DocThumb extends StatelessWidget {
     required this.uploadResult,
     this.onRemove,
   });
-  final DocumentFile doc;
-  final VoidCallback onTap;
+  final DocumentFile  doc;
+  final VoidCallback  onTap;
   final VoidCallback? onRemove;
-  // FIX: null = not uploaded yet, true = success, false = failed
-  final bool? uploadResult;
+  final bool?         uploadResult;
 
   @override
   Widget build(BuildContext context) {
@@ -882,15 +1155,10 @@ class _DocThumb extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Image thumbnail
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.file(doc.file, fit: BoxFit.cover),
           ),
-
-          // During upload: subtle dim only — no spinner on thumbnails.
-          // Spinner lives on the button only, keeping the UI clean.
-          // After upload: ✅ green or ❌ red overlay with icon.
           if (uploadResult != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
@@ -900,7 +1168,9 @@ class _DocThumb extends StatelessWidget {
                     : AppConstants.errorRed.withValues(alpha: 0.55),
                 child: Center(
                   child: Icon(
-                    uploadResult! ? Icons.check_circle_rounded : Icons.error_rounded,
+                    uploadResult!
+                        ? Icons.check_circle_rounded
+                        : Icons.error_rounded,
                     color: Colors.white,
                     size: 32,
                   ),
@@ -908,20 +1178,17 @@ class _DocThumb extends StatelessWidget {
               ),
             )
           else if (onRemove == null)
-            // Uploading — just dim, spinner is on the button
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                color: Colors.black.withValues(alpha: 0.25),
-              ),
+                  color: Colors.black.withValues(alpha: 0.25)),
             ),
-
-          // Doc type label at bottom left
           if (uploadResult == null)
             Positioned(
               bottom: 4, left: 4,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(4),
@@ -933,8 +1200,6 @@ class _DocThumb extends StatelessWidget {
                         fontWeight: FontWeight.w700)),
               ),
             ),
-
-          // Remove button — hidden during upload
           if (onRemove != null)
             Positioned(
               top: 4, right: 4,
@@ -946,7 +1211,8 @@ class _DocThumb extends StatelessWidget {
                     color: Colors.black.withValues(alpha: 0.5),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close, size: 10, color: Colors.white),
+                  child: const Icon(Icons.close,
+                      size: 10, color: Colors.white),
                 ),
               ),
             ),
@@ -1006,13 +1272,13 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
             ),
           ),
           const SizedBox(height: 18),
-          Text('Add Documents',
+          Text(AppLocalizations.of(context)!.addDocument,
               style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
                   color: theme.primary)),
           const SizedBox(height: 4),
-          Text('Select type · Camera for burst · Gallery for multi-select',
+          Text(AppLocalizations.of(context)!.uploadDocument,
               style: TextStyle(fontSize: 12, color: theme.textMuted)),
           const SizedBox(height: 16),
           Wrap(
@@ -1033,9 +1299,7 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                     color: sel ? theme.primary : theme.surface1,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: sel
-                          ? theme.primary
-                          : theme.border,
+                      color: sel ? theme.primary : theme.border,
                       width: 1.5,
                     ),
                   ),
@@ -1067,7 +1331,7 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                 child: ElevatedButton.icon(
                   onPressed: widget.onCamera,
                   icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                  label: const Text('Take Photo'),
+                  label: Text(AppLocalizations.of(context)!.takePhoto),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.primary,
                     foregroundColor: Colors.white,
@@ -1084,7 +1348,7 @@ class _DocBottomSheetState extends State<_DocBottomSheet> {
                 child: ElevatedButton.icon(
                   onPressed: widget.onGallery,
                   icon: const Icon(Icons.photo_library_rounded, size: 18),
-                  label: const Text('Select Multiple'),
+                  label: Text(AppLocalizations.of(context)!.chooseFile),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.surface3,
                     foregroundColor: theme.primary,

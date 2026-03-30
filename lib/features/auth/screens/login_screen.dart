@@ -2,11 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/leap_theme.dart';
+import '../../../core/services/api_client.dart';
 import '../../../core/services/otm_instance_service.dart';
 import '../services/auth_service.dart';
 import '../../shipment_groups/screens/shipment_groups_screen.dart';
+import '../../../l10n/app_localizations.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LEAP DockMate — Login Screen
@@ -44,8 +47,8 @@ class _LoginScreenState extends State<LoginScreen>
   bool _pwdFocused      = false;
   bool _userIdError     = false;
   bool _pwdError        = false;
-  String _userIdErrorMsg = 'Username is required';
-  String _pwdErrorMsg    = 'Password is required';
+  String _userIdErrorMsg = '';
+  String _pwdErrorMsg    = '';
 
   OtmInstance? _activeInstance;
 
@@ -103,8 +106,8 @@ class _LoginScreenState extends State<LoginScreen>
         setState(() {
           _isLockedOut = false; _failedAttempts = 0;
           _userIdError = false; _pwdError = false;
-          _pwdErrorMsg = 'Password is required';
-          _userIdErrorMsg = 'Username is required';
+          _pwdErrorMsg = AppLocalizations.of(context)!.passwordRequired;
+          _userIdErrorMsg = AppLocalizations.of(context)!.usernameRequired;
         });
         if (mounted) FocusScope.of(context).requestFocus(_passwordFocus);
       }
@@ -116,8 +119,8 @@ class _LoginScreenState extends State<LoginScreen>
 
     setState(() {
       _userIdError = false; _pwdError = false;
-      _userIdErrorMsg = 'Username is required';
-      _pwdErrorMsg = 'Password is required';
+      _userIdErrorMsg = AppLocalizations.of(context)!.usernameRequired;
+      _pwdErrorMsg = AppLocalizations.of(context)!.passwordRequired;
     });
 
     if (_userIdCtrl.text.trim().isEmpty || _passwordCtrl.text.trim().isEmpty) {
@@ -148,16 +151,21 @@ class _LoginScreenState extends State<LoginScreen>
       ));
     } catch (e) {
       if (!mounted) return;
-      _failedAttempts++;
+
+      // Network / server errors should NOT count as a failed credential attempt.
+      final isNetworkError = e is ApiException && (e.statusCode == null);
+      if (!isNetworkError) _failedAttempts++;
+
       setState(() {
         _loading = false;
-        _userIdError = true; _pwdError = true;
+        _userIdError = !isNetworkError;
+        _pwdError    = true;
         _pwdErrorMsg = e.toString().replaceAll('Exception: ', '');
         _userIdErrorMsg = '';
       });
       HapticFeedback.mediumImpact();
       _shakeCtrl.forward(from: 0);
-      if (_failedAttempts >= _maxAttempts) _startLockout();
+      if (!isNetworkError && _failedAttempts >= _maxAttempts) _startLockout();
     }
   }
 
@@ -185,11 +193,14 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final t = context.watch<LeapThemeProvider>().theme;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: t.surface1,
       resizeToAvoidBottomInset: true,
-      body: Column(children: [
+      body: Stack(
+        children: [
+          Column(children: [
 
         // ── LEAP brand header ──────────────────────────────────────────
         Container(
@@ -200,53 +211,40 @@ class _LoginScreenState extends State<LoginScreen>
             bottom: 28, left: 20, right: 20,
           ),
           child: Column(children: [
-            const Text('LEAP',
-              style: TextStyle(fontFamily: 'PlusJakartaSans',
-                fontSize: 40, fontWeight: FontWeight.w800,
-                color: Colors.white, letterSpacing: 8, height: 1.0)),
-            const SizedBox(height: 5),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 22, height: 1.5, color: t.accent),
-              const SizedBox(width: 8),
-              Text('DOCKMATE', style: TextStyle(fontFamily: 'PlusJakartaSans',
-                  fontSize: 11, fontWeight: FontWeight.w700,
-                  color: t.accent, letterSpacing: 5)),
-              const SizedBox(width: 8),
-              Container(width: 22, height: 1.5, color: t.accent),
-            ]),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 6, height: 6,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle, color: LeapPlatform.oracleOrange)),
-                const SizedBox(width: 7),
-                Text('Powered by Oracle OTM',
+                const Text('LEAP',
                   style: TextStyle(fontFamily: 'PlusJakartaSans',
-                    fontSize: 10, fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.50),
-                    letterSpacing: 0.3)),
-              ]),
-            ),
-            const SizedBox(height: 12),
-            // Language + Theme icons — below Oracle badge
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _HeaderIconBtn(
-                icon: Icons.language_outlined,
-                onTap: () {},  // Language switching deferred — coming soon
-              ),
-              const SizedBox(width: 8),
-              _HeaderIconBtn(
-                icon: Icons.palette_outlined,
-                onTap: () => LeapThemePicker.show(context),
-              ),
-            ]),
+                    fontSize: 40, fontWeight: FontWeight.w800,
+                    color: Colors.white, letterSpacing: 8, height: 1.0)),
+                const SizedBox(height: 5),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 22, height: 1.5, color: t.accent),
+                  const SizedBox(width: 8),
+                  Text('DOCKMATE', style: TextStyle(fontFamily: 'PlusJakartaSans',
+                      fontSize: 11, fontWeight: FontWeight.w700,
+                      color: t.accent, letterSpacing: 5)),
+                  const SizedBox(width: 8),
+                  Container(width: 22, height: 1.5, color: t.accent),
+                ]),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                    color: Colors.white.withValues(alpha: 0.06),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(width: 6, height: 6,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle, color: LeapPlatform.oracleOrange)),
+                    const SizedBox(width: 7),
+                    Text(AppLocalizations.of(context)!.poweredBy,
+                      style: TextStyle(fontFamily: 'PlusJakartaSans',
+                        fontSize: 10, fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.50),
+                        letterSpacing: 0.3)),
+                  ]),
+                ),
           ]),
         ),
 
@@ -274,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen>
                       _InputField(
                         controller: _userIdCtrl,
                         focusNode: _userIdFocus,
-                        label: 'Username',
+                        label: l10n.username,
                         hint: 'DOMAIN.USERNAME',
                         icon: Icons.person_outline_rounded,
                         hasError: _userIdError,
@@ -292,7 +290,7 @@ class _LoginScreenState extends State<LoginScreen>
                       _InputField(
                         controller: _passwordCtrl,
                         focusNode: _passwordFocus,
-                        label: 'Password',
+                        label: l10n.password,
                         hint: '••••••••',
                         icon: Icons.lock_outline_rounded,
                         obscureText: _obscurePassword,
@@ -340,14 +338,14 @@ class _LoginScreenState extends State<LoginScreen>
                                       const Icon(Icons.lock_outline_rounded,
                                           size: 16, color: Colors.white),
                                       const SizedBox(width: 8),
-                                      Text('Try again in ${_lockoutCountdown}s',
+                                      Text(l10n.tryAgainIn(_lockoutCountdown),
                                         style: const TextStyle(
                                           fontFamily: 'PlusJakartaSans',
                                           fontSize: 15, fontWeight: FontWeight.w700,
                                           color: Colors.white)),
                                     ])
-                                  : const Text('Sign In',
-                                      style: TextStyle(fontFamily: 'PlusJakartaSans',
+                                  : Text(l10n.signIn,
+                                      style: const TextStyle(fontFamily: 'PlusJakartaSans',
                                           fontSize: 16, fontWeight: FontWeight.w700)),
                         ),
                       ),
@@ -355,8 +353,7 @@ class _LoginScreenState extends State<LoginScreen>
                       if (_failedAttempts > 0 && !_isLockedOut) ...[
                         const SizedBox(height: 10),
                         Text(
-                          '${_maxAttempts - _failedAttempts} attempt'
-                          '${(_maxAttempts - _failedAttempts) != 1 ? 's' : ''} remaining before lockout',
+                          l10n.attemptsRemaining(_maxAttempts - _failedAttempts),
                           textAlign: TextAlign.center,
                           style: TextStyle(fontFamily: 'PlusJakartaSans',
                               fontSize: 11, color: t.danger,
@@ -371,7 +368,18 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
         ),
-      ]),
+          ]),
+          // ── Palette icon — screen top-right ─────
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 16,
+            child: _HeaderIconBtn(
+              icon: Icons.palette_outlined,
+              onTap: () => LeapThemePicker.show(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -444,7 +452,7 @@ class _InstanceCard extends StatelessWidget {
                       style: TextStyle(fontFamily: 'PlusJakartaSans',
                           fontSize: 11, color: theme.textMuted)),
                   ])
-                : Text('Tap to set up OTM instance',
+                : Text(AppLocalizations.of(context)!.tapToSetupInstance,
                     style: TextStyle(fontFamily: 'PlusJakartaSans',
                         fontSize: 14, fontWeight: FontWeight.w600,
                         color: theme.warning)),
@@ -543,6 +551,7 @@ class _InstancePickerSheetState extends State<_InstancePickerSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.read<LeapThemeProvider>().theme;
+    final l10n = AppLocalizations.of(context)!;
 
     return Container(
       decoration: BoxDecoration(
@@ -557,7 +566,7 @@ class _InstancePickerSheetState extends State<_InstancePickerSheet> {
                 borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 18),
         Row(children: [
-          Text('OTM Instance', style: TextStyle(fontFamily: 'PlusJakartaSans',
+          Text(l10n.otmInstance, style: TextStyle(fontFamily: 'PlusJakartaSans',
               fontSize: 17, fontWeight: FontWeight.w800, color: t.text)),
           const Spacer(),
           if (_saved.isNotEmpty)
@@ -567,7 +576,7 @@ class _InstancePickerSheetState extends State<_InstancePickerSheet> {
         ]),
         const SizedBox(height: 4),
         Align(alignment: Alignment.centerLeft,
-          child: Text('Swipe left to remove',
+          child: Text(l10n.swipeToRemove,
             style: TextStyle(fontFamily: 'PlusJakartaSans',
                 fontSize: 12, color: t.textMuted))),
         const SizedBox(height: 16),
@@ -577,7 +586,7 @@ class _InstancePickerSheetState extends State<_InstancePickerSheet> {
             child: CircularProgressIndicator(color: t.primary, strokeWidth: 2))
         else if (_saved.isEmpty)
           Padding(padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Text('No instances saved yet',
+            child: Text(l10n.noInstancesSaved,
               style: TextStyle(fontFamily: 'PlusJakartaSans',
                   fontSize: 14, color: t.textMuted)))
         else
@@ -644,7 +653,7 @@ class _InstancePickerSheetState extends State<_InstancePickerSheet> {
             onPressed: _scanNew,
             icon: Icon(Icons.qr_code_scanner_rounded,
                 color: t.primary, size: 18),
-            label: Text('Scan new instance',
+            label: Text(l10n.scanNewInstance,
               style: TextStyle(fontFamily: 'PlusJakartaSans',
                   fontWeight: FontWeight.w700, color: t.primary)),
             style: OutlinedButton.styleFrom(
@@ -676,6 +685,47 @@ class _ScanSheetState extends State<_ScanSheet> {
   OtmInstance? _parsed;
   final _urlCtrl = TextEditingController();
 
+  bool? _cameraGranted; // null = pending, true = granted, false = denied
+
+  @override
+  void initState() {
+    super.initState();
+    _requestCameraPermission();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    setState(() => _cameraGranted = status.isGranted);
+    if (status.isPermanentlyDenied) _showSettingsDialog();
+  }
+
+  void _showSettingsDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Camera Access Required',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+        content: const Text(
+          'Camera permission is required to scan QR codes. '
+          'To enable it, open Settings → Apps → DockMate → Permissions.',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not Now'),
+          ),
+          ElevatedButton(
+            onPressed: () async { Navigator.pop(context); await openAppSettings(); },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _urlCtrl.dispose();
@@ -703,6 +753,7 @@ class _ScanSheetState extends State<_ScanSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<LeapThemeProvider>().theme;
+    final l10n = AppLocalizations.of(context)!;
 
     return Container(
       decoration: BoxDecoration(
@@ -717,7 +768,7 @@ class _ScanSheetState extends State<_ScanSheet> {
                 borderRadius: BorderRadius.circular(2)))),
         const SizedBox(height: 18),
 
-        Text(_parsed != null ? 'Confirm instance' : 'Add OTM instance',
+        Text(_parsed != null ? l10n.confirmInstance : l10n.addOtmInstance,
           style: TextStyle(fontFamily: 'PlusJakartaSans',
               fontSize: 17, fontWeight: FontWeight.w800, color: t.text)),
         const SizedBox(height: 16),
@@ -756,8 +807,8 @@ class _ScanSheetState extends State<_ScanSheet> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Save & use this instance',
-                style: TextStyle(fontFamily: 'PlusJakartaSans',
+              child: Text(l10n.saveAndUse,
+                style: const TextStyle(fontFamily: 'PlusJakartaSans',
                     fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
@@ -767,7 +818,7 @@ class _ScanSheetState extends State<_ScanSheet> {
               _urlCtrl.clear();
               setState(() { _parsed = null; _scanned = false; });
             },
-            child: Text('Scan again', style: TextStyle(
+            child: Text(l10n.scanAgain, style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
                 color: t.primary, fontWeight: FontWeight.w600)),
           ),
@@ -785,7 +836,7 @@ class _ScanSheetState extends State<_ScanSheet> {
                   border: Border.all(
                       color: !_showManual ? t.primary : t.border),
                 ),
-                child: Text('Scan QR code', textAlign: TextAlign.center,
+                child: Text(l10n.scanQrCode, textAlign: TextAlign.center,
                   style: TextStyle(fontFamily: 'PlusJakartaSans',
                       fontSize: 13, fontWeight: FontWeight.w700,
                       color: !_showManual ? Colors.white : t.textMuted)),
@@ -802,7 +853,7 @@ class _ScanSheetState extends State<_ScanSheet> {
                   border: Border.all(
                       color: _showManual ? t.primary : t.border),
                 ),
-                child: Text('Enter manually', textAlign: TextAlign.center,
+                child: Text(l10n.enterManually, textAlign: TextAlign.center,
                   style: TextStyle(fontFamily: 'PlusJakartaSans',
                       fontSize: 13, fontWeight: FontWeight.w700,
                       color: _showManual ? Colors.white : t.textMuted)),
@@ -816,11 +867,16 @@ class _ScanSheetState extends State<_ScanSheet> {
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
                 height: 200,
-                child: MobileScanner(onDetect: _onDetect),
+                child: _cameraGranted == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : _cameraGranted == true
+                        ? MobileScanner(onDetect: _onDetect)
+                        : _CameraPermissionPlaceholder(
+                            onRetry: _requestCameraPermission),
               ),
             ),
             const SizedBox(height: 12),
-            Text('Point camera at the OTM instance QR code',
+            Text(l10n.pointCamera,
               textAlign: TextAlign.center,
               style: TextStyle(fontFamily: 'PlusJakartaSans',
                   fontSize: 12, color: t.textMuted)),
@@ -853,7 +909,7 @@ class _ScanSheetState extends State<_ScanSheet> {
             ),
             const SizedBox(height: 8),
             Align(alignment: Alignment.centerLeft,
-              child: Text('URL will be validated as you type',
+              child: Text(l10n.urlValidating,
                 style: TextStyle(fontFamily: 'PlusJakartaSans',
                     fontSize: 11, color: t.textMuted))),
           ],
@@ -946,6 +1002,41 @@ class _InputField extends StatelessWidget {
                 fontWeight: FontWeight.w500, color: theme.danger)),
           ),
       ],
+    );
+  }
+}
+
+// ─── Camera Permission Placeholder ───────────────────────────────────────────
+
+class _CameraPermissionPlaceholder extends StatelessWidget {
+  const _CameraPermissionPlaceholder({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black87,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.no_photography_rounded,
+              color: Colors.white54, size: 40),
+          const SizedBox(height: 12),
+          const Text(
+            'Camera access denied',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            label: const Text(
+              'Grant Permission',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
